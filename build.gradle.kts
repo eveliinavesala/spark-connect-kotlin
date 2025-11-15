@@ -1,5 +1,6 @@
 import com.google.protobuf.gradle.*
 import org.gradle.api.file.DuplicatesStrategy
+import org.gradle.api.tasks.JavaExec
 
 plugins {
     id("org.jetbrains.kotlin.jvm") version "1.9.10"
@@ -11,15 +12,24 @@ version = "1.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
-    maven { url = uri("https://repository.apache.org/snapshots") }
 }
 
 dependencies {
-    implementation("org.apache.spark:spark-connect-client_2.13:4.0.0-SNAPSHOT")
+    implementation("org.apache.spark:spark-connect-client-jvm_2.13:4.0.0")
+    "protobuf"("org.apache.spark:spark-connect-client-jvm_2.13:4.0.0")
     implementation("com.google.protobuf:protobuf-kotlin:3.25.3")
     implementation("com.google.protobuf:protobuf-java:3.25.3")
 
     testImplementation(kotlin("test"))
+}
+
+configurations.all {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "org.apache.zookeeper" && requested.name == "zookeeper") {
+            useVersion("3.9.4")
+            because("Addressing security vulnerability")
+        }
+    }
 }
 
 protobuf {
@@ -30,6 +40,7 @@ protobuf {
         getByName("main") {
             proto {
                 srcDir("src/main/proto")
+                exclude("spark/**")
             }
         }
     }
@@ -43,6 +54,10 @@ protobuf {
 }
 
 sourceSets["main"].java.srcDir("build/generated/source/proto/main/kotlin")
+
+tasks.withType<JavaExec> {
+    jvmArgs("--add-opens=java.base/java.nio=ALL-UNNAMED")
+}
 
 tasks.processResources {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
