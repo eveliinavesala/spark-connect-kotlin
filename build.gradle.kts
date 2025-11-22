@@ -3,8 +3,8 @@ import org.gradle.api.file.DuplicatesStrategy
 import org.gradle.api.tasks.JavaExec
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "1.9.10"
-    id("com.google.protobuf") version "0.9.4"
+    id("org.jetbrains.kotlin.jvm") version "2.2.21"
+    id("com.google.protobuf") version "0.9.5"
 }
 
 group = "org.jetbrains.kotlinx.spark"
@@ -16,25 +16,17 @@ repositories {
 
 dependencies {
     implementation("org.apache.spark:spark-connect-client-jvm_2.13:4.0.0")
-    "protobuf"("org.apache.spark:spark-connect-client-jvm_2.13:4.0.0")
-    implementation("com.google.protobuf:protobuf-kotlin:3.25.3")
-    implementation("com.google.protobuf:protobuf-java:3.25.3")
+    "protobuf"("org.apache.spark:spark-connect-client-jvm_2.13:4.0.1")
+    implementation("com.google.protobuf:protobuf-kotlin:4.33.1")
+    implementation("com.google.protobuf:protobuf-java:4.33.1")
 
     testImplementation(kotlin("test"))
 }
 
-configurations.all {
-    resolutionStrategy.eachDependency {
-        if (requested.group == "org.apache.zookeeper" && requested.name == "zookeeper") {
-            useVersion("3.9.4")
-            because("Addressing security vulnerability")
-        }
-    }
-}
 
 protobuf {
     protoc {
-        artifact = "com.google.protobuf:protoc:3.25.3"
+        artifact = "com.google.protobuf:protoc:4.33.1"
     }
     sourceSets {
         getByName("main") {
