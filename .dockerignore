@@ -1,0 +1,16 @@
+# Exclude Gradle files
+.gradle
+build
+gradle/
+gradlew
+gradlew.bat
+
+# Exclude IDE and git files
+.idea/
+*.iml
+.git/
+.gitignore
+
+# Exclude documentation and local data
+*.md
+data/
