@@ -51,7 +51,7 @@ This project uses [Testcontainers](https://www.testcontainers.org/) to automatic
 To run the tests, execute the following command in your terminal:
 
 ```sh
-make build && ./gradlew test
+make test
 ```
 
 This will download the necessary Docker image, start the Spark container, run the tests, and then shut down the container. You can also run the tests directly from your IDE.

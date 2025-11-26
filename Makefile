@@ -37,7 +37,7 @@ refresh:
 # --- Test commands ---
 
 test:
-	make build &&./gradlew test
+	make build && ./gradlew test
 
 stacktrace:
 	make build && ./gradlew test --stacktrace --info
