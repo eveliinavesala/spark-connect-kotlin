@@ -34,9 +34,19 @@ rebuild:
 refresh:
 	./gradlew build --refresh-dependencies
 
+# --- Test commands ---
+
+test:
+	make build &&./gradlew test
+
+stacktrace:
+	make build && ./gradlew test --stacktrace --info
+
+
+
 # --- Utility Commands ---
 
-.PHONY: build run stop clean app all rebuild refresh
+.PHONY: build run stop clean app all rebuild refresh test stacktrace
 
 # Full workflow: build, run server, run app, then stop and clean up. Extra sleep time is to avoid race condition.
 all:
