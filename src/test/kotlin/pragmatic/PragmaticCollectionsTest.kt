@@ -1,0 +1,41 @@
+package pragmatic
+
+import classes.SparkTestBase
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Test
+
+class PragmaticCollectionsTest : SparkTestBase() {
+
+    // 1. Test for List<Primitive>
+    data class ListHolder(val id: Int, val items: List<String>)
+
+    @Test
+    fun `pragmatic approach should handle List of primitives`() {
+        val data = listOf(ListHolder(1, listOf("a", "b", "c")))
+        val df = spark.createPragmaticDataFrame(data, ListHolder::class)
+        val results = df.toKotlinList(ListHolder::class)
+        assertEquals(data, results)
+    }
+
+    // 2. Test for Set<Primitive>
+    data class SetHolder(val id: Int, val items: Set<String>)
+
+    @Test
+    fun `pragmatic approach should handle Set of primitives`() {
+        val data = listOf(SetHolder(1, setOf("a", "b", "c")))
+        val df = spark.createPragmaticDataFrame(data, SetHolder::class)
+        val results = df.toKotlinList(SetHolder::class)
+        assertEquals(data, results)
+    }
+
+    // 3. Test for Map<Primitive, Primitive>
+    data class MapHolder(val id: Int, val items: Map<String, Int>)
+
+    @Test
+    fun `pragmatic approach should handle Map of primitives`() {
+        val data = listOf(MapHolder(1, mapOf("a" to 100, "b" to 200)))
+        val df = spark.createPragmaticDataFrame(data, MapHolder::class)
+        val results = df.toKotlinList(MapHolder::class)
+        assertEquals(data, results)
+    }
+}
