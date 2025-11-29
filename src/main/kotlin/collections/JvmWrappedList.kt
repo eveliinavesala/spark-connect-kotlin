@@ -1,9 +1,3 @@
-package collections
-
-import java.util.ArrayList
-
-/**
- * A class representing the common Java pattern of using a mutable list implementation.
- * While Kotlin's `List` is read-only, Java code often uses concrete mutable types.
- */
-class PersonWithMutableList(val name: String, val favoriteFoods: ArrayList<String>)
+// This file has been removed as the 'JvmWrapped' classes have been deemed obsolete
+// by the findings of our research. The core issues are not at the class-feature level
+// but in the serialization/deserialization layer, requiring a dedicated adapter.

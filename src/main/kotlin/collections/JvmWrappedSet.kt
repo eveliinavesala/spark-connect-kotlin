@@ -1,8 +1,3 @@
-package collections
-
-import java.util.HashSet
-
-/**
- * A class representing the common Java pattern of using a mutable set implementation.
- */
-class PersonWithMutableSet(val name: String, val visitedCountries: HashSet<String>)
+// This file has been removed as the 'JvmWrapped' classes have been deemed obsolete
+// by the findings of our research. The core issues are not at the class-feature level
+// but in the serialization/deserialization layer, requiring a dedicated adapter.

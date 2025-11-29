@@ -1,8 +1,3 @@
-package collections
-
-import java.util.HashMap
-
-/**
- * A class representing the common Java pattern of using a mutable map implementation.
- */
-class UserWithMutableScores(val id: String, val scores: HashMap<String, Int>)
+// This file has been removed as the 'JvmWrapped' classes have been deemed obsolete
+// by the findings of our research. The core issues are not at the class-feature level
+// but in the serialization/deserialization layer, requiring a dedicated adapter.
