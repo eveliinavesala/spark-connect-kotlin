@@ -34,11 +34,12 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect:1.9.24")
     
     // Test dependencies
-    testImplementation(kotlin("test"))
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5") // Use the JUnit 5 variant of kotlin-test
     testImplementation("org.testcontainers:testcontainers:1.19.8")
     testImplementation("org.testcontainers:junit-jupiter:1.19.8")
     testImplementation("org.slf4j:slf4j-simple:2.0.13")
 
+    // Explicitly declare the JUnit 5 engine to prevent Gradle's automatic loading deprecation warning.
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.2")
 }
 
@@ -46,8 +47,6 @@ tasks.processResources {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
-// Task to create a "fat JAR" that includes all dependencies.
-// This is necessary for Spark Connect to find all required classes for UDFs on the server.
 tasks.jar {
     archiveClassifier.set("fat")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
@@ -60,11 +59,8 @@ tasks.jar {
 
 tasks.test {
     useJUnitPlatform()
-    
-    // Ensure the fat JAR is created before tests are run
     dependsOn(tasks.jar)
     
-    // Add JVM arguments required by Spark for reflection on modern Java versions.
     jvmArgs(
         "--add-opens=java.base/java.nio=ALL-UNNAMED"
     )

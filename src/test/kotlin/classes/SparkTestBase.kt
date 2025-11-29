@@ -12,10 +12,15 @@ import java.io.File
 abstract class SparkTestBase {
 
     companion object {
+        private val projectRoot = System.getProperty("user.dir")
+
         @Container
         @JvmField
+        @Suppress("DEPRECATION") // withFileSystemBind is deprecated but reliable
         val sparkContainer: GenericContainer<*> = GenericContainer("spark-server")
             .withExposedPorts(15002)
+            // Mount the data directory to an absolute path inside the container
+            .withFileSystemBind("$projectRoot/src/test/resources/data", "/data")
 
         lateinit var spark: SparkSession
 
@@ -26,18 +31,15 @@ abstract class SparkTestBase {
                 .remote("sc://localhost:${sparkContainer.getMappedPort(15002)}")
                 .getOrCreate()
 
-            // Find the fat JAR file created by the 'jar' task in build.gradle.kts
-            // and add it to the Spark session. This is crucial for UDFs.
-            val projectDir = System.getProperty("user.dir")
-            val jarFile = File(projectDir, "build/libs/spark-connect-kotlin-1.0-fat.jar")
+            // Find the fat JAR file and add it to the Spark session.
+            val jarFile = File(projectRoot, "build/libs/spark-connect-kotlin-1.0-fat.jar")
             
             if (jarFile.exists()) {
                 spark.addArtifact(jarFile.toURI())
             } else {
-                // This is a fallback for running tests directly in the IDE, where the JAR
-                // might not be built automatically. It adds the compiled class directories.
-                val mainClasses = File(projectDir, "build/classes/kotlin/main")
-                val testClasses = File(projectDir, "build/classes/kotlin/test")
+                // Fallback for running in the IDE
+                val mainClasses = File(projectRoot, "build/classes/kotlin/main")
+                val testClasses = File(projectRoot, "build/classes/kotlin/test")
                 if (mainClasses.exists()) spark.addArtifact(mainClasses.toURI())
                 if (testClasses.exists()) spark.addArtifact(testClasses.toURI())
             }

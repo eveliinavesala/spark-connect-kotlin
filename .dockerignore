@@ -13,4 +13,4 @@ gradlew.bat
 
 # Exclude documentation and local data
 *.md
-data/
+src/test/resources/data/

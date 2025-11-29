@@ -12,7 +12,6 @@ import scala.jdk.javaapi.CollectionConverters
 
 import kotlin.reflect.KClass
 import kotlin.reflect.KType
-import kotlin.reflect.full.isData
 import kotlin.reflect.full.isSubclassOf
 import kotlin.reflect.full.memberProperties
 import kotlin.reflect.full.primaryConstructor
@@ -22,35 +21,13 @@ fun <T : Any> SparkSession.createPragmaticDataFrame(data: List<T>, kClass: KClas
     if (data.isEmpty()) return this.emptyDataFrame()
     val schema = inferSchema(kClass)
     val rows = data.map { obj ->
-        convertKotlinObjectToRow(obj, schema)
+        val values = kClass.memberProperties.map { prop ->
+            val kotlinValue = prop.get(obj)
+            convertKotlinValueToSpark(kotlinValue)
+        }.toTypedArray()
+        GenericRowWithSchema(values, schema)
     }
     return this.createDataFrame(rows, schema)
-}
-
-private fun convertKotlinObjectToRow(obj: Any, schema: StructType): Row {
-    val kClass = obj::class
-    val values = kClass.memberProperties.map { prop ->
-        val kotlinValue = prop.get(obj)
-        convertKotlinValueToSpark(kotlinValue)
-    }.toTypedArray()
-    return GenericRowWithSchema(values, schema)
-}
-
-private fun convertKotlinValueToSpark(value: Any?): Any? {
-    return when {
-        value == null -> null
-        value is Enum<*> -> value.name // Convert Enum to String
-        value::class.isData -> convertKotlinObjectToRow(value, inferSchema(value::class))
-        value is Set<*> -> CollectionConverters.asScala(value.map { convertKotlinValueToSpark(it) }).toSeq()
-        value is List<*> -> CollectionConverters.asScala(value.map { convertKotlinValueToSpark(it) }).toSeq()
-        value is Map<*, *> -> {
-            val scalaMap = value.map { (k, v) ->
-                convertKotlinValueToSpark(k) to convertKotlinValueToSpark(v)
-            }.toMap()
-            CollectionConverters.asScala(scalaMap)
-        }
-        else -> value
-    }
 }
 
 fun <T : Any> Dataset<Row>.toKotlinList(kClass: KClass<T>): List<T> {
@@ -71,13 +48,30 @@ fun <T : Any> Dataset<Row>.toKotlinList(kClass: KClass<T>): List<T> {
     }
 }
 
+private fun convertKotlinValueToSpark(value: Any?): Any? {
+    return when (value) {
+        null -> null
+        is Enum<*> -> value.name
+        is Set<*> -> CollectionConverters.asScala(value.map { convertKotlinValueToSpark(it) }).toSeq()
+        is List<*> -> CollectionConverters.asScala(value.map { convertKotlinValueToSpark(it) }).toSeq()
+        is Map<*, *> -> {
+            val scalaMap = value.map { (k, v) ->
+                convertKotlinValueToSpark(k) to convertKotlinValueToSpark(v)
+            }.toMap()
+            CollectionConverters.asScala(scalaMap)
+        }
+        // Nested data classes are NOT handled in this version.
+        else -> value
+    }
+}
+
 private fun convertSparkValueToKotlin(value: Any?, targetType: KType): Any? {
     if (value == null) return null
     val targetClass = targetType.jvmErasure
 
     return when {
         targetClass.isSubclassOf(Enum::class) -> {
-            // Convert String back to Enum
+            @Suppress("UNCHECKED_CAST")
             val enumClass = targetClass.java as Class<out Enum<*>>
             enumClass.enumConstants.first { (it as Enum<*>).name == value.toString() }
         }
@@ -93,13 +87,7 @@ private fun convertSparkValueToKotlin(value: Any?, targetType: KType): Any? {
             val javaMap = CollectionConverters.asJava(value)
             javaMap.mapValues { (_, v) -> convertSparkValueToKotlin(v, valueType) }
         }
-        value is Row -> {
-            val nestedConstructor = targetClass.primaryConstructor!!
-            val nestedArgs = nestedConstructor.parameters.associateWith { param ->
-                convertSparkValueToKotlin(value.getAs(param.name), param.type)
-            }
-            nestedConstructor.callBy(nestedArgs)
-        }
+        // Nested data classes are NOT handled in this version.
         else -> value
     }
 }
@@ -114,7 +102,7 @@ private fun inferSchema(kClass: KClass<*>): StructType {
 private fun kotlinTypeToSparkType(kType: KType): DataType {
     val classifier = kType.jvmErasure
     return when {
-        classifier.isSubclassOf(Enum::class) -> DataTypes.StringType // Enums are stored as Strings
+        classifier.isSubclassOf(Enum::class) -> DataTypes.StringType
         classifier == String::class -> DataTypes.StringType
         classifier == Int::class -> DataTypes.IntegerType
         classifier == Long::class -> DataTypes.LongType
@@ -130,7 +118,7 @@ private fun kotlinTypeToSparkType(kType: KType): DataType {
             val valueType = kType.arguments.getOrNull(1)?.type ?: error("Map needs a value type.")
             DataTypes.createMapType(kotlinTypeToSparkType(keyType), kotlinTypeToSparkType(valueType), valueType.isMarkedNullable)
         }
-        classifier.isData -> inferSchema(classifier)
+        // isData check is intentionally removed to isolate the problem.
         else -> throw IllegalArgumentException("Unsupported type in schema inference: ${classifier.simpleName}")
     }
 }
