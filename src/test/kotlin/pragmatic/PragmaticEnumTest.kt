@@ -3,6 +3,8 @@ package pragmatic
 import classes.SparkTestBase
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import pragmatic.toDataFrame
+import pragmatic.toKotlinList
 
 class PragmaticEnumTest : SparkTestBase() {
 
@@ -16,17 +18,14 @@ class PragmaticEnumTest : SparkTestBase() {
     )
 
     @Test
-    fun `pragmatic approach should handle enums`() {
+    fun `should handle enums`() {
         val data = listOf(
             UserWithEnum(1, UserStatus.ACTIVE),
             UserWithEnum(2, UserStatus.INACTIVE)
         )
 
-        // This test will fail until the pragmatic implementation is updated
-        // to handle enum types correctly.
-        val df = spark.createPragmaticDataFrame(data, UserWithEnum::class)
-        val results = df.toKotlinList(UserWithEnum::class)
-
+        val df = data.toDataFrame(spark)
+        val results = df.toKotlinList<UserWithEnum>()
         assertEquals(data, results)
     }
 }

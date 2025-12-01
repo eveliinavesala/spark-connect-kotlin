@@ -15,13 +15,83 @@ import kotlin.reflect.KType
 import kotlin.reflect.full.*
 import kotlin.reflect.jvm.jvmErasure
 
-fun <T : Any> SparkSession.createPragmaticDataFrame(data: List<T>, kClass: KClass<T>): Dataset<Row> {
+// --- Public API ---
+
+/**
+ * Creates a Spark DataFrame from a list of Kotlin objects using a robust,
+ * reflection-based approach that is compatible with Spark Connect.
+ */
+inline fun <reified T : Any> List<T>.toDataFrame(spark: SparkSession): Dataset<Row> {
+    return spark.createDataFrameFromKotlinList(this, T::class)
+}
+
+/**
+ * Converts a Spark DataFrame back into a list of idiomatic Kotlin data class instances.
+ */
+inline fun <reified T : Any> Dataset<Row>.toKotlinList(): List<T> {
+    return this.toKotlinListFromDataFrame(T::class)
+}
+
+
+// --- Internal Implementation ---
+
+/**
+ * Public non-inline helper that allows the inline functions to call internal code.
+ * This is a key part of the "inline-reified facade" pattern.
+ */
+fun <T : Any> SparkSession.createDataFrameFromKotlinList(data: List<T>, kClass: KClass<T>): Dataset<Row> {
+    return this.createDataFrameViaReflectionInternal(data, kClass)
+}
+
+fun <T : Any> Dataset<Row>.toKotlinListFromDataFrame(kClass: KClass<T>): List<T> {
+    return this.toKotlinClassListInternal(kClass)
+}
+
+/**
+ * INTERNAL API: Creates a DataFrame from a list of Kotlin objects using reflection.
+ */
+internal fun SparkSession.createDataFrameViaReflectionInternal(data: List<Any>, kClass: KClass<*>): Dataset<Row> {
     if (data.isEmpty()) return this.emptyDataFrame()
     val schema = inferSchema(kClass)
     val rows = data.map { obj ->
         convertKotlinObjectToRow(obj, schema)
     }
     return this.createDataFrame(rows, schema)
+}
+
+/**
+ * INTERNAL API: Converts a DataFrame back to a list of Kotlin objects.
+ */
+internal fun <T : Any> Dataset<Row>.toKotlinClassListInternal(kClass: KClass<T>): List<T> {
+    val collectedRows: List<Row> = this.collectAsList()
+
+    if (kClass.isSealed) {
+        return collectedRows.map { row ->
+            val typeName = row.getAs<String>("_type")
+            val subClass = kClass.sealedSubclasses.find { it.simpleName == typeName }
+                ?: error("Unknown subclass type '$typeName' for sealed class '${kClass.simpleName}'")
+            createObjectFromRow(row, subClass)
+        }
+    }
+
+    return collectedRows.map { row ->
+        createObjectFromRow(row, kClass)
+    }
+}
+
+@Suppress("UNCHECKED_CAST")
+private fun <T : Any> createObjectFromRow(row: Row, kClass: KClass<T>): T {
+    val constructor = kClass.primaryConstructor ?: error("No primary constructor for ${kClass.simpleName}")
+    val argsMap = constructor.parameters.associateWith { param ->
+        val rawValue: Any? = row.getAs(param.name)
+        if (rawValue == null && !param.type.isMarkedNullable) {
+            throw IllegalArgumentException(
+                "Null value received from Spark for non-nullable parameter '${param.name}' in ${kClass.simpleName}"
+            )
+        }
+        convertSparkValueToKotlin(rawValue, param.type)
+    }
+    return constructor.callBy(argsMap)
 }
 
 @Suppress("UNCHECKED_CAST")
@@ -37,7 +107,7 @@ private fun <T : Any> convertSpecificObjectToRow(obj: T, schema: StructType): Ro
                     val kotlinValue = prop.get(obj)
                     convertKotlinValueToSpark(kotlinValue)
                 } else {
-                    null // This field does not exist in this subclass
+                    null
                 }
             }
         }
@@ -66,37 +136,6 @@ private fun convertKotlinValueToSpark(value: Any?): Any? {
         }
         else -> value
     }
-}
-
-fun <T : Any> Dataset<Row>.toKotlinList(kClass: KClass<T>): List<T> {
-    val collectedRows: List<Row> = this.collectAsList()
-
-    if (kClass.isSealed) {
-        return collectedRows.map { row ->
-            val typeName = row.getAs<String>("_type")
-            val subClass = kClass.sealedSubclasses.find { it.simpleName == typeName }
-                ?: error("Unknown subclass type '$typeName' for sealed class '${kClass.simpleName}'")
-            createObjectFromRow(row, subClass)
-        }
-    }
-
-    return collectedRows.map { row ->
-        createObjectFromRow(row, kClass)
-    }
-}
-
-private fun <T : Any> createObjectFromRow(row: Row, kClass: KClass<T>): T {
-    val constructor = kClass.primaryConstructor ?: error("No primary constructor for ${kClass.simpleName}")
-    val argsMap = constructor.parameters.associateWith { param ->
-        val rawValue: Any? = row.getAs(param.name)
-        if (rawValue == null && !param.type.isMarkedNullable) {
-            throw IllegalArgumentException(
-                "Null value received from Spark for non-nullable parameter '${param.name}' in ${kClass.simpleName}"
-            )
-        }
-        convertSparkValueToKotlin(rawValue, param.type)
-    }
-    return constructor.callBy(argsMap)
 }
 
 private fun convertSparkValueToKotlin(value: Any?, targetType: KType): Any? {
@@ -136,7 +175,7 @@ private fun inferSchema(kClass: KClass<*>): StructType {
     if (kClass.isSealed) {
         val allProperties = kClass.sealedSubclasses.flatMap { it.memberProperties }.distinctBy { it.name }
         val fields = allProperties.map { prop ->
-            StructField(prop.name, kotlinTypeToSparkType(prop.returnType), true, Metadata.empty()) // All fields must be nullable
+            StructField(prop.name, kotlinTypeToSparkType(prop.returnType), true, Metadata.empty())
         }
         val typeField = StructField("_type", DataTypes.StringType, false, Metadata.empty())
         return StructType((fields + typeField).toTypedArray())

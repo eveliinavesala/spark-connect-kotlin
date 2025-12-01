@@ -6,7 +6,7 @@ This document records the key failures encountered during the development of the
 
 | ID | Symptom (Error Message) | Root Cause | The Lesson / Correct Pattern |
 | :--- | :--- | :--- | :--- |
-| `[BUILD-1]` | `Unresolved reference: isData` | The `kotlin-reflect` library was not on the **compile classpath**. | The `kotlin-reflect` dependency **must** be an `implementation` dependency. |
+| `[BUILD-1]` | `Unresolved reference: isData` | **[SOLVED]** This was not a build failure. It was caused by an incorrect `import kotlin.reflect.full.isData`. | The `isData` property is a built-in member of `KClass` and requires no import from `.full`. The `kotlin-reflect` dependency is still required on the `implementation` classpath. |
 | `[BUILD-2]` | `Unresolved reference: junit`, `Unresolved reference: Testcontainers` | The `org.testcontainers:junit-jupiter` dependency was removed. | This artifact contains the core `@Testcontainers` and `@Container` annotations and is required. |
 | `[BUILD-3]` | `ClassNotFoundException: ...PragmaticUDFTest` | The Spark server did not have our project's compiled test classes on its classpath. | Any custom code for server-side execution must be sent as an artifact. |
 | `[BUILD-4]` | `ClassNotFoundException: ...GenericContainer` | The JAR artifact sent to the server only contained our project's code, not its dependencies. | The artifact must be a **"fat JAR"** that includes all runtime dependencies. |
@@ -18,8 +18,8 @@ This document records the key failures encountered during the development of the
 | ID | Symptom (Error Message) | Root Cause | The Lesson / Correct Pattern |
 | :--- | :--- | :--- | :--- |
 | `[IMPL-SER-1]` | `ClassCastException: ...HashMap cannot be cast to scala.collection.Map` | We converted Kotlin collections to **Java** collections, but the Arrow serializer expected **Scala** collections. | **When serializing, convert Kotlin collections to Scala collections** (`Seq`, `scala.collection.Map`) using `CollectionConverters`. |
-| `[IMPL-SER-2]` | `ClassCastException: ...UserProfile cannot be cast to org.apache.spark.sql.Row` | Our serialization logic was not recursive for nested data classes. | The serialization logic must be **fully recursive**. When a data class is encountered, it must be converted into a `GenericRowWithSchema`. |
-| `[IMPL-SER-3]` | `Receiver type ... contains out projection` (Compiler Error) | A flawed recursive pattern using `prop.get(obj)` on a generic `KProperty1<out Any, *>` was not type-safe. | Avoid this specific reflection pattern. A safer way is to check `value::class.isData` inside a `when` block where the type is concrete. |
+| `[IMPL-SER-2]` | `ClassCastException: ...UserProfile cannot be cast to org.apache.spark.sql.Row` | **[SOLVED]** Our serialization logic was not recursive for nested data classes. | The serialization logic must be **fully recursive**. The final implementation uses a type-safe generic helper function to achieve this. |
+| `[IMPL-SER-3]` | `Receiver type ... contains out projection` (Compiler Error) | **[SOLVED]** A flawed recursive pattern using `prop.get(obj)` on a generic `KProperty1<out Any, *>` was not type-safe. | The solution was to create a `private fun <T : Any> convertSpecificObjectToRow(obj: T)` helper. This preserves the specific type `T`, making the call to `prop.get(obj)` provably type-safe. |
 
 ### 2.2 Deserialization Failures (Spark -> Kotlin)
 

@@ -3,6 +3,8 @@ package pragmatic
 import classes.SparkTestBase
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import pragmatic.toDataFrame
+import pragmatic.toKotlinList
 
 class PragmaticAdvancedTypesTest : SparkTestBase() {
 
@@ -20,7 +22,7 @@ class PragmaticAdvancedTypesTest : SparkTestBase() {
     )
 
     @Test
-    fun `pragmatic approach should handle simple nested data classes`() {
+    fun `should handle simple nested data classes`() {
         val data = listOf(
             SimpleUser(
                 id = 1L,
@@ -28,8 +30,8 @@ class PragmaticAdvancedTypesTest : SparkTestBase() {
                 profile = SimpleProfile("alice@example.com", "alice.dev")
             )
         )
-        val df = spark.createPragmaticDataFrame(data, SimpleUser::class)
-        val results = df.toKotlinList(SimpleUser::class)
+        val df = data.toDataFrame(spark)
+        val results = df.toKotlinList<SimpleUser>()
         assertEquals(data, results)
     }
 
@@ -41,15 +43,15 @@ class PragmaticAdvancedTypesTest : SparkTestBase() {
     }
 
     @Test
-    fun `pragmatic approach should handle sealed classes`() {
+    fun `should handle sealed classes`() {
         val data = listOf(
             ApiResponse.Success("Data for request 1"),
             ApiResponse.Error(404, "Not Found"),
             ApiResponse.Success("More data")
         )
-        val df = spark.createPragmaticDataFrame(data, ApiResponse::class)
+        val df = data.toDataFrame(spark)
         df.show()
-        val results = df.toKotlinList(ApiResponse::class)
+        val results = df.toKotlinList<ApiResponse>()
         assertEquals(data, results)
     }
 }

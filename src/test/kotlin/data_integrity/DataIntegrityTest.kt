@@ -7,7 +7,7 @@ import org.apache.spark.sql.functions
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
-import pragmatic.createPragmaticDataFrame
+import pragmatic.toDataFrame
 import pragmatic.toKotlinList
 
 class DataIntegrityTest : SparkTestBase() {
@@ -17,16 +17,15 @@ class DataIntegrityTest : SparkTestBase() {
     @Test
     fun `dataframe api is not type-safe at compile time`() {
         val data = listOf(TypedPerson("Alice", 30))
-        val df = spark.createPragmaticDataFrame(data, TypedPerson::class)
+        val df = data.toDataFrame(spark)
 
         val query = df.select(functions.col("name"), functions.col("ag"))
 
-        // The goal is just to prove a runtime exception happens.
         try {
             query.collect()
             fail("Expected a runtime AnalysisException, but none was thrown.")
         } catch (e: AnalysisException) {
-            // Success! The test's purpose is fulfilled by catching the runtime exception.
+            // Success!
         }
     }
 
@@ -49,8 +48,8 @@ class DataIntegrityTest : SparkTestBase() {
             ItemWithNullable(2, null)
         )
 
-        val df = spark.createPragmaticDataFrame(dataWithNulls, ItemWithNullable::class)
-        val results = df.toKotlinList(ItemWithNullable::class)
+        val df = dataWithNulls.toDataFrame(spark)
+        val results = df.toKotlinList<ItemWithNullable>()
 
         assertEquals(2, results.size)
         assertEquals("A valid description", results.find { it.id == 1 }?.description)
@@ -63,11 +62,10 @@ class DataIntegrityTest : SparkTestBase() {
             ItemWithNullable(1, "A valid description"),
             ItemWithNullable(2, null)
         )
-        val df = spark.createPragmaticDataFrame(dataWithNulls, ItemWithNullable::class)
+        val df = dataWithNulls.toDataFrame(spark)
 
-        // Expect our new, more informative IllegalArgumentException
         assertThrows(IllegalArgumentException::class.java) {
-            df.toKotlinList(ItemWithNonNullable::class)
+            df.toKotlinList<ItemWithNonNullable>()
         }
     }
 }

@@ -9,6 +9,8 @@ import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.api.java.UDF1
 import org.apache.spark.sql.types.DataTypes
+import pragmatic.toDataFrame
+import pragmatic.toKotlinList
 
 class SparkETLTest : SparkTestBase() {
 
@@ -33,7 +35,6 @@ class SparkETLTest : SparkTestBase() {
         assertTrue(df.count() > 0)
         
         val schema = df.schema()
-        // Corrected column name based on [DATA-1]
         assertEquals(DataTypes.IntegerType, schema.fields().find { it.name() == "track_popularity" }?.dataType())
         assertEquals(DataTypes.IntegerType, schema.fields().find { it.name() == "artist_followers" }?.dataType())
         assertEquals(DataTypes.StringType, schema.fields().find { it.name() == "explicit" }?.dataType())
@@ -41,7 +42,6 @@ class SparkETLTest : SparkTestBase() {
 
     @Test
     fun `should perform basic column selection, renaming, and filtering`() {
-        // Corrected column name based on [DATA-1]
         val transformedDF = df
             .select("track_name", "artist_name", "track_popularity")
             .withColumnRenamed("artist_name", "artist")
@@ -59,7 +59,6 @@ class SparkETLTest : SparkTestBase() {
 
     @Test
     fun `should create a new column using withColumn`() {
-        // Corrected column name based on [DATA-1]
         val transformedDF = df.withColumn("popularity_normalized", col("track_popularity").divide(100.0))
 
         transformedDF.select("track_popularity", "popularity_normalized").show(5)
@@ -82,7 +81,6 @@ class SparkETLTest : SparkTestBase() {
         }
         spark.udf().register("popularityCategory", durationCategoryUDF, DataTypes.StringType)
 
-        // Corrected column name based on [DATA-1]
         val transformedDF = df.withColumn("popularity_category", callUDF("popularityCategory", col("track_popularity")))
         
         transformedDF.select("track_name", "track_popularity", "popularity_category").show(5)

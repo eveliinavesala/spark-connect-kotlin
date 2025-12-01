@@ -3,6 +3,8 @@ package pragmatic
 import classes.SparkTestBase
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import pragmatic.toDataFrame
+import pragmatic.toKotlinList
 
 class PragmaticCollectionsTest : SparkTestBase() {
 
@@ -10,10 +12,10 @@ class PragmaticCollectionsTest : SparkTestBase() {
     data class ListHolder(val id: Int, val items: List<String>)
 
     @Test
-    fun `pragmatic approach should handle List of primitives`() {
+    fun `should handle List of primitives`() {
         val data = listOf(ListHolder(1, listOf("a", "b", "c")))
-        val df = spark.createPragmaticDataFrame(data, ListHolder::class)
-        val results = df.toKotlinList(ListHolder::class)
+        val df = data.toDataFrame(spark)
+        val results = df.toKotlinList<ListHolder>()
         assertEquals(data, results)
     }
 
@@ -21,10 +23,10 @@ class PragmaticCollectionsTest : SparkTestBase() {
     data class SetHolder(val id: Int, val items: Set<String>)
 
     @Test
-    fun `pragmatic approach should handle Set of primitives`() {
+    fun `should handle Set of primitives`() {
         val data = listOf(SetHolder(1, setOf("a", "b", "c")))
-        val df = spark.createPragmaticDataFrame(data, SetHolder::class)
-        val results = df.toKotlinList(SetHolder::class)
+        val df = data.toDataFrame(spark)
+        val results = df.toKotlinList<SetHolder>()
         assertEquals(data, results)
     }
 
@@ -32,10 +34,10 @@ class PragmaticCollectionsTest : SparkTestBase() {
     data class MapHolder(val id: Int, val items: Map<String, Int>)
 
     @Test
-    fun `pragmatic approach should handle Map of primitives`() {
+    fun `should handle Map of primitives`() {
         val data = listOf(MapHolder(1, mapOf("a" to 100, "b" to 200)))
-        val df = spark.createPragmaticDataFrame(data, MapHolder::class)
-        val results = df.toKotlinList(MapHolder::class)
+        val df = data.toDataFrame(spark)
+        val results = df.toKotlinList<MapHolder>()
         assertEquals(data, results)
     }
 }
