@@ -19,7 +19,7 @@ The core of our success is the reflection-based adapter, which functions as a sy
 
 - **Key Feature Support:**
     - **`[IMPL-SER-2]` Nested Data Classes:** The recursive, type-safe implementation correctly serializes and deserializes arbitrarily nested data classes.
-    - **Sealed Classes (Tagged Union):** The adapter successfully implements the "tagged union" strategy. It creates a unified schema with a `_type` field, allowing for the serialization and deserialization of heterogeneous lists of sealed class subtypes.
+    - **Sealed Classes (Tagged Union):** The adapter successfully implements the "tagged union" strategy. It creates a unified schema with a `_type` field, allowing for the serialization and the deserialization of heterogeneous lists of sealed class subtypes.
 
 ## 2. Robust UDF Execution in Spark Connect
 
@@ -34,4 +34,19 @@ The core of our success is the reflection-based adapter, which functions as a sy
 
 ## 4. Build & Configuration Successes
 
-- **The `isData` Discovery:** We proved that the `isData` compilation error was not a dependency issue, but was caused by an incorrect `import` statement. The property is a built-in member of `KClass` and requires no special imports.
+**Current `build.gradle.kts` Overview:**
+```kotlin
+plugins {
+    id("org.jetbrains.kotlin.jvm") version "1.9.24"
+    application
+}
+// ... other standard Gradle configurations ...
+dependencies {
+    implementation("org.apache.spark:spark-connect-client-jvm_2.13:4.0.0")
+    implementation(kotlin("reflect")) // Essential for reflection features
+    // ... test dependencies and constraints ...
+}
+// ... tasks for jar, test, etc. ...
+```
+
+- **The `isData` Discovery:** We proved that the `isData` compilation error was not a dependency issue, but was caused by an incorrect `import` statement. The property is a built-in member of `KClass` and requires no special imports. **This property is fundamental for the recursive logic that enables support for nested and sealed classes.**
