@@ -1,53 +1,57 @@
-# Investigation Log: Nested & Sealed Types
+# Investigation Log: Nested & Sealed Types (RESOLVED)
 
-This document tracks the specific investigation into supporting nested data classes and sealed hierarchies within the pragmatic `DataFrame` approach.
+This document originally tracked the challenges in supporting nested data classes and sealed hierarchies. This investigation has concluded successfully, and robust solutions have been implemented.
 
 ## Objective
 
-To extend the pragmatic `DataFrame` adapter to correctly serialize and deserialize arbitrarily nested data classes.
+To extend the reflection-based adapter to correctly serialize and deserialize arbitrarily nested data classes and polymorphic sealed hierarchies.
 
-## Current Status: **Unsolved**
+## Current Status: **RESOLVED**
 
-The current implementation of the pragmatic adapter **does not** support nested data classes. This is a known limitation and the subject of ongoing research.
+Both nested data classes and sealed hierarchies are now fully supported by the reflection-based adapter. The `wip_nested_types` package has been removed as the work is complete.
 
-## Initial Failing Test Case
+## Solution for Nested Data Classes
 
-The problem is isolated with the `PragmaticNestedTest`, which attempts a simple round-trip of a `SimpleUser` object containing a nested `SimpleProfile` object. This test is currently located in the `wip_nested_types` package and is marked as `@Disabled`.
+### The Problem (`[IMPL-SER-3]` Revisited)
 
-```kotlin
-data class SimpleProfile(
-    val email: String,
-    val website: String?
-)
+The primary roadblock for nested data classes was the Kotlin reflection error:
+`Receiver type 'KProperty1<out Any, *>' contains out projection which prohibits the use of 'fun get(receiver: T): V'.`
+This occurred in our recursive serialization logic when trying to access property values from an `obj: Any`, as the compiler could not guarantee type safety.
 
-data class SimpleUser(
-    val id: Long,
-    val username: String,
-    val profile: SimpleProfile
-)
-```
+### The Solution: The Type-Safe Generic Helper
 
-The failure is a `java.lang.ClassCastException` during serialization, proving the conversion logic is incomplete.
+The problem was solved by introducing a **type-safe generic helper function** (`private fun <T : Any> convertSpecificObjectToRow(obj: T, schema: StructType): Row`).
 
-## Attempted Solutions & Root Cause Analysis
+*   **Mechanism:** This helper function captures the specific type `T` of the object being processed.
+*   **Resolution:** By preserving the exact type `T`, the `KProperty1` objects obtained from `kClass.memberProperties` become `KProperty1<T, *>`. The call `prop.get(obj)` is then provably type-safe, as the receiver `obj` (of type `T`) perfectly matches the property's expected receiver type.
+*   **Recursion:** The `convertKotlinValueToSpark` function now calls this type-safe helper recursively when it encounters another data class, enabling deep nesting.
 
-### Attempt 1: Simple Recursive `Row` Creation
+## Solution for Sealed Classes (Tagged Union Strategy)
 
-- **Approach:** The `convertKotlinValueToSpark` function was modified to check `if (value::class.isData)`. If true, it would recursively call a helper to convert the nested object into a `GenericRowWithSchema`.
-- **Failure:** This resulted in a `Receiver type 'KProperty1<out Any, *>' contains out projection` compilation error.
-- **Root Cause `[IMPL-SER-3]`:** This is a fundamental limitation of Kotlin's reflection API. When reflecting on a generic `Any` object, the compiler cannot guarantee that the object instance is a valid receiver for a property (`KProperty1`) obtained from that object's class. The `out` projection correctly makes this code fail at compile-time because it is not type-safe.
+### The Problem
 
-### Attempt 2: The Map-based Approach
+Spark's DataFrame schema is static and does not natively support polymorphic types like Kotlin's sealed classes, where a single type can have multiple distinct subtypes with different fields.
 
-- **Approach:** The entire serialization logic was changed to convert the Kotlin object graph into a nested `List` of `Map<String, Any?>`, with the intent of using a (presumed) `spark.createDataFrame(List<Map>)` method.
-- **Failure:** This resulted in a `None of the following functions can be called with the arguments supplied` compilation error.
-- **Root Cause:** The presumed `createDataFrame(List<Map>)` API does not exist in the Spark Connect `SparkSession`. This approach was based on a flawed assumption about the available API surface.
+### The Solution: The Tagged Union Strategy
 
-## Next Steps
+This problem was solved by implementing a "Tagged Union" strategy:
 
-The path forward requires a deeper understanding of Spark's serialization internals.
+1.  **Schema Inference:**
+    *   When `inferSchema` encounters a `KClass.isSealed`, it inspects all `sealedSubclasses`.
+    *   It collects **all unique properties** from all possible subclasses.
+    *   It constructs a single, unified `StructType` that includes all these properties (making them nullable, as not all properties will exist in all subtypes).
+    *   **Crucially**, it adds a new, non-nullable `_type: String` field to the schema.
 
-1.  **Deep Dive into Spark Source Code:** A manual review of `ArrowSerializer.scala` is required to understand exactly what object type it expects when it encounters a `StructType` in the schema. Our assumption that it requires a `GenericRowWithSchema` may be correct, but our method of constructing it is flawed.
-2.  **Re-evaluate the Reflection Strategy:** A new, type-safe method for recursively building `Row` objects must be designed, likely avoiding the `KProperty1<out Any, *>` trap.
+2.  **Serialization (Kotlin -> Spark):**
+    *   When `convertKotlinValueToSpark` encounters a `value::class.isSealed`, it calls `convertKotlinObjectToRow`.
+    *   `convertKotlinObjectToRow` now uses the unified schema. It writes the `kClass.simpleName` (e.g., "Success", "Error") of the concrete instance into the `_type` field.
+    *   It populates only the fields relevant to the current concrete subtype, leaving other fields (from other subtypes) as `null`.
 
-This problem is now parked until this further research is complete.
+3.  **Deserialization (Spark -> Kotlin):**
+    *   The `Dataset<Row>.toKotlinList` function first reads the `_type` field from the incoming `Row`.
+    *   It then uses this `_type` string to dynamically find the correct `KClass` (subtype) from the sealed hierarchy's `sealedSubclasses`.
+    *   Finally, it uses the primary constructor of that specific subtype to deserialize the `Row` into the correct Kotlin object.
+
+## Conclusion
+
+The successful implementation of these strategies means the reflection-based adapter now provides comprehensive support for complex Kotlin type hierarchies, making it a robust solution for idiomatic Kotlin data processing with Spark Connect.
