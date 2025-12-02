@@ -1,21 +1,39 @@
-# Kotlin Notebook Integration
+# Kotlin Notebook Integration (Local Development Workflow)
 
-This directory contains example notebooks that demonstrate how to use our Kotlin-Spark-API extensions in an interactive environment.
+This document describes a pragmatic workflow for using Kotlin Notebooks for **local, interactive development** of this library.
 
-## In-IDE Workflow
+This approach uses a manual IDE run configuration to provide the notebook with the project's full classpath, including all dependencies and our compiled `pragmatic` code. This is a powerful method for rapid prototyping and debugging without needing to publish the library locally.
 
-This project is configured to provide a seamless, in-IDE Kotlin Notebook experience. The `org.jetbrains.kotlin.notebook` Gradle plugin allows the IDE to automatically use the project's build file as the single source of truth for all dependencies.
+### How to Set Up and Run
 
-### How to Run the Notebooks
+1.  **Start the Spark Server:**
+    Ensure the Spark Connect server is running. You can start it using our Docker setup:
+    ```sh
+    make docker-build
+    # (Then run the container, exposing port 15002)
+    ```
 
-1.  **Build the Project:**
-    Ensure the latest version of our library code is compiled. This makes our `pragmatic` package available to the notebook.
+2.  **Build the Project:**
+    Make sure the latest version of our library code is compiled. This is essential for the IDE to find our `pragmatic` package.
     ```sh
     ./gradlew build
     ```
 
-2.  **Open the Notebook in your IDE:**
-    Open the `notebooks/GettingStarted.ipynb` file directly in a compatible IDE (e.g., IntelliJ IDEA with the Kotlin Notebook plugin).
+3.  **Create an IDE Run Configuration (The Core of the Setup):**
+    We will create a run configuration that uses the `main` function of our application to establish the correct classpath for the notebook.
 
-3.  **Run the Cells:**
-    You can now execute the cells in the notebook. The IDE will automatically use the project's classpath. All dependencies, including the Spark Connect client, `kotlin-reflect`, and our own `pragmatic` library code, will be available without any `%use` or `@file:DependsOn` commands in the notebook itself.
+    *   In your IDE (e.g., IntelliJ IDEA), go to "Run/Debug Configurations".
+    *   Click the **+** button and select **Kotlin**.
+    *   Name the configuration something descriptive, like `Notebook Environment`.
+    *   For the **Main class**, select `app.kotlin_spark.MainKt`. This is the key step that provides the notebook with all the necessary project dependencies.
+    *   In the **VM options** field, add the following arguments to ensure compatibility with Spark's reflection needs on modern JVMs:
+        ```
+        --add-opens=java.base/java.nio=ALL-UNNAMED
+        --add-opens=java.base/sun.util.calendar=ALL-UNNAMED
+        ```
+
+4.  **Run the Configuration:**
+    Select the newly created `Notebook Environment` configuration and run it. This will start a process with the correct classpath.
+
+5.  **Interact with the Notebook:**
+    While the `Notebook Environment` process is running, open the `notebooks/GettingStartedKotlin.ipynb` file in your IDE. You can now execute the cells one by one. The notebook kernel will attach to the running process and will have full access to Spark, our `pragmatic` library, and all other dependencies.
