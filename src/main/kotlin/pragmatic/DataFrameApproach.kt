@@ -15,6 +15,7 @@ import org.apache.spark.unsafe.types.UTF8String
 import scala.collection.Seq
 import scala.collection.Map as ScalaMap
 import scala.jdk.javaapi.CollectionConverters
+import java.util.AbstractList
 
 import java.sql.Date
 import java.sql.Timestamp
@@ -56,15 +57,36 @@ fun <T : Any> Dataset<Row>.toKotlinListFromDataFrame(kClass: KClass<T>): List<T>
 }
 
 /**
+ * A memory-efficient, lazy-loading List that generates Spark Rows on-the-fly.
+ * It wraps the original data source and only performs the conversion from a Kotlin
+ * object to a Row when the `get(index)` method is called.
+ */
+class LazyRowList(
+    private val sourceData: List<Any>,
+    private val schema: StructType
+) : AbstractList<Row>() {
+
+    // The conversion logic is only invoked when an element is accessed.
+    override fun get(index: Int): Row {
+        val sourceObject = sourceData[index]
+        return convertKotlinObjectToRow(sourceObject, schema)
+    }
+
+    override val size: Int
+        get() = sourceData.size
+}
+
+
+/**
  * INTERNAL API: Creates a DataFrame from a list of Kotlin objects using reflection.
+ * This implementation uses a lazy-loading list to avoid materializing all `Row` objects
+ * in the driver's memory at once, providing significant memory savings for large collections.
  */
 internal fun SparkSession.createDataFrameViaReflectionInternal(data: List<Any>, kClass: KClass<*>): Dataset<Row> {
     if (data.isEmpty()) return this.emptyDataFrame()
     val schema = inferSchema(kClass)
-    val rows = data.map { obj ->
-        convertKotlinObjectToRow(obj, schema)
-    }
-    return this.createDataFrame(rows, schema)
+    val lazyRows = LazyRowList(data, schema)
+    return this.createDataFrame(lazyRows, schema)
 }
 
 /**
@@ -88,7 +110,7 @@ internal fun <T : Any> Dataset<Row>.toKotlinClassListInternal(kClass: KClass<T>)
 }
 
 @Suppress("UNCHECKED_CAST")
-private fun <T : Any> createObjectFromRow(row: Row, kClass: KClass<T>): T {
+internal fun <T : Any> createObjectFromRow(row: Row, kClass: KClass<T>): T {
     val constructor = kClass.primaryConstructor ?: error("No primary constructor for ${kClass.simpleName}")
     val argsMap = constructor.parameters.associateWith { param ->
         val rawValue: Any? = row.getAs(param.name)
@@ -103,9 +125,9 @@ private fun <T : Any> createObjectFromRow(row: Row, kClass: KClass<T>): T {
 }
 
 @Suppress("UNCHECKED_CAST")
-private fun <T : Any> convertSpecificObjectToRow(obj: T, schema: StructType): Row {
+internal fun <T : Any> convertSpecificObjectToRow(obj: T, schema: StructType): Row {
     val kClass = obj::class as KClass<T>
-    
+
     val values = schema.fields().map { field ->
         when (field.name()) {
             "_type" -> kClass.simpleName
@@ -124,11 +146,11 @@ private fun <T : Any> convertSpecificObjectToRow(obj: T, schema: StructType): Ro
     return GenericRowWithSchema(values, schema)
 }
 
-private fun convertKotlinObjectToRow(obj: Any, schema: StructType): Row {
+internal fun convertKotlinObjectToRow(obj: Any, schema: StructType): Row {
     return convertSpecificObjectToRow(obj, schema)
 }
 
-private fun convertKotlinValueToSpark(value: Any?): Any? {
+internal fun convertKotlinValueToSpark(value: Any?): Any? {
     return when {
         value == null -> null
         value is LocalDate -> Date.valueOf(value.toJavaLocalDate())
@@ -148,7 +170,7 @@ private fun convertKotlinValueToSpark(value: Any?): Any? {
     }
 }
 
-private fun convertSparkValueToKotlin(value: Any?, targetType: KType): Any? {
+internal fun convertSparkValueToKotlin(value: Any?, targetType: KType): Any? {
     if (value == null) return null
     val targetClass = targetType.jvmErasure
 
@@ -183,7 +205,7 @@ private fun convertSparkValueToKotlin(value: Any?, targetType: KType): Any? {
     }
 }
 
-private fun inferSchema(kClass: KClass<*>): StructType {
+internal fun inferSchema(kClass: KClass<*>): StructType {
     if (kClass.isSealed) {
         val allProperties = kClass.sealedSubclasses.flatMap { it.memberProperties }.distinctBy { it.name }
         val fields = allProperties.map { prop ->
@@ -199,7 +221,7 @@ private fun inferSchema(kClass: KClass<*>): StructType {
     return StructType(fields.toTypedArray())
 }
 
-private fun kotlinTypeToSparkType(kType: KType): DataType {
+internal fun kotlinTypeToSparkType(kType: KType): DataType {
     val classifier = kType.jvmErasure
     return when {
         classifier.isSubclassOf(Enum::class) -> DataTypes.StringType
