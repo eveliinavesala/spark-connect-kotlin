@@ -1,10 +1,10 @@
 package pragmatic
 
 import classes.SparkTestBase
+import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import pragmatic.toDataFrame
-import pragmatic.toKotlinList
 
 class PragmaticAdvancedTypesTest : SparkTestBase() {
 
@@ -52,6 +52,29 @@ class PragmaticAdvancedTypesTest : SparkTestBase() {
         val df = data.toDataFrame(spark)
         df.show()
         val results = df.toKotlinList<ApiResponse>()
+        assertEquals(data, results)
+    }
+
+    // --- Test for kotlinx-datetime ---
+
+    data class Event(
+        val name: String,
+        val date: LocalDate,
+        val timestamp: Instant
+    )
+
+    @Test
+    fun `should handle kotlinx-datetime types`() {
+        val data = listOf(
+            Event(
+                name = "KotlinConf 2024",
+                date = LocalDate(2024, 5, 22),
+                timestamp = Instant.parse("2024-05-22T10:00:00Z")
+            )
+        )
+        val df = data.toDataFrame(spark)
+        df.show()
+        val results = df.toKotlinList<Event>()
         assertEquals(data, results)
     }
 }

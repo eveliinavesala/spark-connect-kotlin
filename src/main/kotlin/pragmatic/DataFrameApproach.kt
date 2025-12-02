@@ -1,5 +1,11 @@
 package pragmatic
 
+import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.toJavaInstant
+import kotlinx.datetime.toJavaLocalDate
+import kotlinx.datetime.toKotlinInstant
+import kotlinx.datetime.toKotlinLocalDate
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.SparkSession
@@ -10,6 +16,8 @@ import scala.collection.Seq
 import scala.collection.Map as ScalaMap
 import scala.jdk.javaapi.CollectionConverters
 
+import java.sql.Date
+import java.sql.Timestamp
 import kotlin.reflect.KClass
 import kotlin.reflect.KType
 import kotlin.reflect.full.*
@@ -40,11 +48,11 @@ inline fun <reified T : Any> Dataset<Row>.toKotlinList(): List<T> {
  * This is a key part of the "inline-reified facade" pattern.
  */
 fun <T : Any> SparkSession.createDataFrameFromKotlinList(data: List<T>, kClass: KClass<T>): Dataset<Row> {
-    return this.createDataFrameViaReflectionInternal(data, kClass)
+    return createDataFrameViaReflectionInternal(data, kClass)
 }
 
 fun <T : Any> Dataset<Row>.toKotlinListFromDataFrame(kClass: KClass<T>): List<T> {
-    return this.toKotlinClassListInternal(kClass)
+    return toKotlinClassListInternal(kClass)
 }
 
 /**
@@ -123,6 +131,8 @@ private fun convertKotlinObjectToRow(obj: Any, schema: StructType): Row {
 private fun convertKotlinValueToSpark(value: Any?): Any? {
     return when {
         value == null -> null
+        value is LocalDate -> Date.valueOf(value.toJavaLocalDate())
+        value is Instant -> Timestamp.from(value.toJavaInstant())
         value::class.isSealed -> convertKotlinObjectToRow(value, inferSchema(value::class))
         value::class.isData -> convertKotlinObjectToRow(value, inferSchema(value::class))
         value is Enum<*> -> value.name
@@ -148,6 +158,8 @@ private fun convertSparkValueToKotlin(value: Any?, targetType: KType): Any? {
             val enumClass = targetClass.java as Class<out Enum<*>>
             enumClass.enumConstants.first { (it as Enum<*>).name == value.toString() }
         }
+        value is Date && targetClass == LocalDate::class -> value.toLocalDate().toKotlinLocalDate()
+        value is Timestamp && targetClass == Instant::class -> value.toInstant().toKotlinInstant()
         value is UTF8String -> value.toString()
         value is Seq<*> -> {
             val elementType = targetType.arguments.first().type!!
@@ -193,6 +205,8 @@ private fun kotlinTypeToSparkType(kType: KType): DataType {
         classifier.isSubclassOf(Enum::class) -> DataTypes.StringType
         classifier.isSealed -> inferSchema(classifier)
         classifier.isData -> inferSchema(classifier)
+        classifier == LocalDate::class -> DataTypes.DateType
+        classifier == Instant::class -> DataTypes.TimestampType
         classifier == String::class -> DataTypes.StringType
         classifier == Int::class -> DataTypes.IntegerType
         classifier == Long::class -> DataTypes.LongType

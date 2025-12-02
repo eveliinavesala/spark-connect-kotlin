@@ -20,6 +20,7 @@ The core of our success is the reflection-based adapter, which functions as a sy
 - **Key Feature Support:**
     - **`[IMPL-SER-2]` Nested Data Classes:** The recursive, type-safe implementation correctly serializes and deserializes arbitrarily nested data classes.
     - **Sealed Classes (Tagged Union):** The adapter successfully implements the "tagged union" strategy. It creates a unified schema with a `_type` field, allowing for the serialization and the deserialization of heterogeneous lists of sealed class subtypes.
+    - **`kotlinx-datetime` Support:** The adapter now correctly handles `kotlinx.datetime.LocalDate` and `kotlinx.datetime.Instant` by converting them to/from Spark's `DateType` and `TimestampType`.
 
 ## 2. Robust UDF Execution in Spark Connect
 
@@ -31,22 +32,9 @@ The core of our success is the reflection-based adapter, which functions as a sy
 ## 3. Environment and Runtime Successes
 
 - **`[ENV-1]` Test Data Mounting:** We successfully provided local test data to the remote Spark server by mounting a local directory to an **absolute path** in the Testcontainer and using that same absolute path in the Spark code.
+- **`[ENV-2]` JPMS/Jigsaw Compatibility:** We successfully resolved `IllegalAccessException` errors by using `--add-opens` JVM arguments in our Gradle build. This allows Spark's code to access internal JDK APIs (like `sun.util.calendar`) that are encapsulated in modern JVMs (9+).
 
 ## 4. Build & Configuration Successes
 
-**Current `build.gradle.kts` Overview:**
-```kotlin
-plugins {
-    id("org.jetbrains.kotlin.jvm") version "1.9.24"
-    application
-}
-// ... other standard Gradle configurations ...
-dependencies {
-    implementation("org.apache.spark:spark-connect-client-jvm_2.13:4.0.0")
-    implementation(kotlin("reflect")) // Essential for reflection features
-    // ... test dependencies and constraints ...
-}
-// ... tasks for jar, test, etc. ...
-```
-
-- **The `isData` Discovery:** We proved that the `isData` compilation error was not a dependency issue, but was caused by an incorrect `import` statement. The property is a built-in member of `KClass` and requires no special imports. **This property is fundamental for the recursive logic that enables support for nested and sealed classes.**
+- **The `isData` Discovery:** We proved that the `isData` compilation error was not a dependency issue, but was caused by an incorrect `import` statement. The property is a built-in member of `KClass` and requires no special imports. This property is fundamental for the recursive logic that enables support for nested and sealed classes.
+- **Logging Conflict Resolution:** We resolved a `StackOverflowError` in the interactive notebook environment by identifying and excluding a transitive `jul-to-slf4j` logging bridge dependency from the `spark-connect-client-jvm` artifact.
