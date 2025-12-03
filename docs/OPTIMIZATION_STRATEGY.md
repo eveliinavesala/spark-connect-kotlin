@@ -104,7 +104,7 @@ The effectiveness of the `LazyRowList` approach has been validated through a ser
 **Key Validations:**
 - **Correctness:** Tests confirm that data is converted to `Row` objects correctly and that the resulting DataFrame matches the expected output.
 - **Laziness:** A specific test verifies that elements are accessed lazily, proving that the `get()` method is called on-demand.
-- **Scalability:** The implementation successfully handles a large list (e.g., 1 million items) without causing an `OutOfMemoryError`, which would likely occur with the eager approach.
+- **Scalability:** The implementation successfully handles a large list of objects without causing an `OutOfMemoryError`, which would likely occur with the eager approach.
 - **Edge Cases:** The implementation correctly handles empty lists.
 
 ## 5. Conclusion
