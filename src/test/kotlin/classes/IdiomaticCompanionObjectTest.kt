@@ -6,6 +6,6 @@ class IdiomaticCompanionObjectTest {
 
     @Test
     fun `test companion object`() {
-        val instance = IdiomaticCompanionObject.create()
+        IdiomaticCompanionObject.create()
     }
 }

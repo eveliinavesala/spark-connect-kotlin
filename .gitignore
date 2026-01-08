@@ -48,4 +48,5 @@ bin/
 
 .env
 /.env
+/docs
 

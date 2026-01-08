@@ -1,10 +1,11 @@
 package collections
 
-import org.apache.spark.sql.Encoders
 import org.apache.spark.sql.functions.size
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import classes.SparkTestBase
+import pragmatic.toDataFrame
+import pragmatic.toKotlinList
 
 class IdiomaticListTest : SparkTestBase() {
 
@@ -14,7 +15,7 @@ class IdiomaticListTest : SparkTestBase() {
             PersonWithList("Alice", listOf("Pizza", "Pasta")),
             PersonWithList("Bob", listOf("Burger"))
         )
-        val df = spark.createDataFrame(data, PersonWithList::class.java)
+        val df = data.toDataFrame(spark)
 
         df.show()
 
@@ -29,11 +30,12 @@ class IdiomaticListTest : SparkTestBase() {
             PersonWithList("Alice", listOf("Pizza", "Pasta")),
             PersonWithList("Bob", listOf("Burger"))
         )
-        val ds = spark.createDataset(data, Encoders.bean(PersonWithList::class.java))
+        val df = data.toDataFrame(spark)
+        val results = df.toKotlinList<PersonWithList>()
 
-        ds.show()
+        results.forEach { println(it) }
 
-        val bobFoods = ds.filter { it.name == "Bob" }.first().favoriteFoods
+        val bobFoods = results.filter { it.name == "Bob" }.first().favoriteFoods
         assertEquals(1, bobFoods.size)
         assertEquals("Burger", bobFoods[0])
     }

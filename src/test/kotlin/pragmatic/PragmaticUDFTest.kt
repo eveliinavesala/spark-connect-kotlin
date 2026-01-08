@@ -1,45 +1,41 @@
 package pragmatic
 
 import classes.SparkTestBase
-import org.apache.spark.sql.api.java.UDF1
+import integration_pack.UDFs
+import integration_pack.toDataFrame
+import org.apache.spark.sql.functions.callUDF
 import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.functions.udf
-import org.apache.spark.sql.types.DataTypes
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
 class PragmaticUDFTest : SparkTestBase() {
 
+    data class Song(val artist: String, val title: String)
+
+    private val songs = listOf(
+        Song("The Beatles", "Hey Jude"),
+        Song("Led Zeppelin", "Stairway to Heaven")
+    )
+
+    @BeforeEach
+    fun setupUdf() {
+        // Register the UDF from our global object
+        spark.udf().register("upperUDF", UDFs.upper)
+    }
+
     @Test
     fun `pragmatic approach can register and use a named UDF`() {
-        val data = listOf("a", "b", "c")
-        val df = spark.createDataset(data, org.apache.spark.sql.Encoders.STRING()).toDF("value")
-
-        val toUpperCaseUDF = UDF1<String, String> { str -> str.uppercase() }
-        spark.udf().register("myUpperCase", toUpperCaseUDF, DataTypes.StringType)
-
-        val transformedDF = df.selectExpr("myUpperCase(value) as upper_value")
-        val results = transformedDF.collectAsList().map { it.getString(0) }
-
-        assertEquals(listOf("A", "B", "C"), results)
+        val df = songs.toDataFrame(spark)
+        val result = df.withColumn("upper_artist", callUDF("upperUDF", col("artist"))).collectAsList()
+        assertEquals("THE BEATLES", result[0].getAs("upper_artist"))
     }
 
     @Test
     fun `pragmatic approach can use an anonymous UDF with withColumn`() {
-        val data = listOf("a", "b", "c")
-        val df = spark.createDataset(data, org.apache.spark.sql.Encoders.STRING()).toDF("value")
-
-        // 1. Define a Kotlin lambda.
-        val toLowerCaseLambda = UDF1<String, String> { str -> str.lowercase() }
-
-        // 2. Wrap the lambda with the udf function factory.
-        val toLowerCaseUDF = udf(toLowerCaseLambda, DataTypes.StringType)
-
-        // 3. Use the UDF's .apply() method to call it on a column.
-        val transformedDF = df.withColumn("lower_value", toLowerCaseUDF.apply(col("value")))
-
-        // 4. Assert the results.
-        val results = transformedDF.select("lower_value").collectAsList().map { it.getString(0) }
-        assertEquals(listOf("a", "b", "c"), results)
+        val df = songs.toDataFrame(spark)
+        // Use the UDF object's apply method explicitly
+        val result = df.withColumn("upper_title", UDFs.upper.apply(col("title"))).collectAsList()
+        assertEquals("HEY JUDE", result[0].getAs("upper_title"))
     }
 }

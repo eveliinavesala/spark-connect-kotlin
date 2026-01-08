@@ -2,7 +2,6 @@ package pragmatic
 
 import classes.SparkTestBase
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.types.StructType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -108,8 +107,9 @@ class LazyLoadingTest : SparkTestBase() {
     @Test
     fun `LazyRowList get() method should convert object to Row correctly`() {
         val data = listOf(SimpleData(10, "test"))
-        val schema = inferSchema(SimpleData::class)
-        val lazyList = LazyRowList(data, schema)
+        val schema = ReflectionCache.getSchema(SimpleData::class)
+        val serializer = ReflectionCache.getSerializer(SimpleData::class)
+        val lazyList = LazyRowList(data, serializer)
 
         assertEquals(1, lazyList.size)
 

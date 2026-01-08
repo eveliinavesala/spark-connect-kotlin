@@ -1,8 +1,9 @@
 package classes
 
-import org.apache.spark.sql.Encoders
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import pragmatic.toDataFrame
+import pragmatic.toKotlinList
 
 class IdiomaticEnumTest : SparkTestBase() {
 
@@ -15,7 +16,7 @@ class IdiomaticEnumTest : SparkTestBase() {
             Pair("B", IdiomaticEnum.ERROR)
         ).map { (key, value) -> EnumData(key, value) }
 
-        val df = spark.createDataFrame(data, EnumData::class.java)
+        val df = data.toDataFrame(spark)
 
         assertEquals(2, df.count())
         assertEquals("SUCCESS", df.first().getAs<String>("value"))
@@ -28,9 +29,10 @@ class IdiomaticEnumTest : SparkTestBase() {
             Pair("B", IdiomaticEnum.ERROR)
         ).map { (key, value) -> EnumData(key, value) }
 
-        val ds = spark.createDataset(data, Encoders.bean(EnumData::class.java))
+        val df = data.toDataFrame(spark)
+        val results = df.toKotlinList<EnumData>()
 
-        assertEquals(2, ds.count())
-        assertEquals(IdiomaticEnum.SUCCESS, ds.first().value)
+        assertEquals(2, results.size)
+        assertEquals(IdiomaticEnum.SUCCESS, results.first().value)
     }
 }

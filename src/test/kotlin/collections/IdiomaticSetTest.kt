@@ -1,11 +1,12 @@
 package collections
 
-import org.apache.spark.sql.Encoders
 import org.apache.spark.sql.functions.size
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import classes.SparkTestBase
+import pragmatic.toDataFrame
+import pragmatic.toKotlinList
 
 class IdiomaticSetTest : SparkTestBase() {
 
@@ -14,7 +15,7 @@ class IdiomaticSetTest : SparkTestBase() {
         val data = listOf(
             PersonWithSet("Charlie", setOf("USA", "Canada", "USA"))
         )
-        val df = spark.createDataFrame(data, PersonWithSet::class.java)
+        val df = data.toDataFrame(spark)
 
         df.show()
 
@@ -28,11 +29,12 @@ class IdiomaticSetTest : SparkTestBase() {
         val data = listOf(
             PersonWithSet("Charlie", setOf("USA", "Canada", "USA"))
         )
-        val ds = spark.createDataset(data, Encoders.bean(PersonWithSet::class.java))
+        val df = data.toDataFrame(spark)
+        val results = df.toKotlinList<PersonWithSet>()
 
-        ds.show()
+        results.forEach { println(it) }
 
-        val countries = ds.first().visitedCountries
+        val countries = results.first().visitedCountries
         assertEquals(2, countries.size)
         assertTrue(countries.contains("USA"))
         assertTrue(countries.contains("Canada"))

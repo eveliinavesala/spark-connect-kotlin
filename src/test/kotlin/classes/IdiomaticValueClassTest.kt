@@ -1,32 +1,32 @@
 package classes
 
-import org.apache.spark.sql.Encoders
-import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Test
+import pragmatic.toDataFrame
+import pragmatic.toKotlinList
+
+// Define the value class for the test
+@JvmInline
+value class UserId(val id: Long)
+
+// Use the value class in a data class
+data class UserWithId(val id: UserId, val name: String)
 
 class IdiomaticValueClassTest : SparkTestBase() {
 
     @Test
-    fun `test value class with spark dataframe`() {
-        val data = listOf(
-            IdiomaticValueClass("A"),
-            IdiomaticValueClass("B")
+    fun `should handle data classes with value class properties`() {
+        val users = listOf(
+            UserWithId(UserId(1L), "Alice"),
+            UserWithId(UserId(2L), "Bob")
         )
-        val df = spark.createDataFrame(data, IdiomaticValueClass::class.java)
 
-        assertEquals(2, df.count())
-        assertEquals("A", df.first().getAs<String>("value"))
-    }
+        val df = users.toDataFrame(spark)
+        df.printSchema()
 
-    @Test
-    fun `test value class with spark dataset`() {
-        val data = listOf(
-            IdiomaticValueClass("A"),
-            IdiomaticValueClass("B")
-        )
-        val ds = spark.createDataset(data, Encoders.bean(IdiomaticValueClass::class.java))
+        val results = df.toKotlinList<UserWithId>()
 
-        assertEquals(2, ds.count())
-        assertEquals("A", ds.first().value)
+        assertEquals(users, results)
+        assertEquals(1L, results.first().id.id)
     }
 }

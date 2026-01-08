@@ -1,8 +1,16 @@
 package classes
 
-import org.apache.spark.sql.Encoders
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import pragmatic.toDataFrame
+import pragmatic.toKotlinList
+
+// Define the sealed interface and its subclasses within the test file for clarity
+sealed interface IdiomaticResult {
+    data class Success(val data: String) : IdiomaticResult
+    data class Error(val message: String) : IdiomaticResult
+}
 
 class IdiomaticSealedInterfaceTest : SparkTestBase() {
 
@@ -13,11 +21,11 @@ class IdiomaticSealedInterfaceTest : SparkTestBase() {
             IdiomaticResult.Error("An error occurred")
         )
 
-        val df = spark.createDataFrame(data, IdiomaticResult::class.java)
-        df.show()
+        val df = data.toDataFrame(spark)
 
         assertEquals(2, df.count())
-        assertEquals("Data", df.first().getAs<String>("data"))
+        val successRow = df.filter("`_type` = 'Success'").first()
+        assertEquals("Data", successRow.getAs<String>("data"))
     }
 
     @Test
@@ -27,10 +35,16 @@ class IdiomaticSealedInterfaceTest : SparkTestBase() {
             IdiomaticResult.Error("An error occurred")
         )
 
-        val ds = spark.createDataset(data, Encoders.bean(IdiomaticResult::class.java))
-        ds.show()
+        val df = data.toDataFrame(spark)
+        val results = df.toKotlinList<IdiomaticResult>()
 
-        assertEquals(2, ds.count())
-        assertEquals("Data", (ds.first() as IdiomaticResult.Success).data)
+        assertEquals(2, results.size)
+        val firstResult = results.first()
+        assertTrue(firstResult is IdiomaticResult.Success, "First element should be IdiomaticResult.Success")
+        assertEquals("Data", (firstResult as IdiomaticResult.Success).data)
+
+        val secondResult = results[1]
+        assertTrue(secondResult is IdiomaticResult.Error, "Second element should be IdiomaticResult.Error")
+        assertEquals("An error occurred", (secondResult as IdiomaticResult.Error).message)
     }
 }

@@ -1,11 +1,11 @@
 package collections
 
-import org.apache.spark.sql.Encoders
 import org.apache.spark.sql.functions.map_keys
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import classes.SparkTestBase
-import java.util.Arrays
+import pragmatic.toDataFrame
+import pragmatic.toKotlinList
 
 class IdiomaticMapTest : SparkTestBase() {
 
@@ -14,7 +14,7 @@ class IdiomaticMapTest : SparkTestBase() {
         val data = listOf(
             UserWithScores("user1", mapOf("math" to 95, "science" to 88))
         )
-        val df = spark.createDataFrame(data, UserWithScores::class.java)
+        val df = data.toDataFrame(spark)
 
         df.show()
 
@@ -29,11 +29,12 @@ class IdiomaticMapTest : SparkTestBase() {
         val data = listOf(
             UserWithScores("user1", mapOf("math" to 95, "science" to 88))
         )
-        val ds = spark.createDataset(data, Encoders.bean(UserWithScores::class.java))
+        val df = data.toDataFrame(spark)
+        val results = df.toKotlinList<UserWithScores>()
 
-        ds.show()
+        results.forEach { println(it) }
 
-        val userScores = ds.first().scores
+        val userScores = results.first().scores
         assertEquals(2, userScores.size)
         assertEquals(95, userScores["math"])
     }

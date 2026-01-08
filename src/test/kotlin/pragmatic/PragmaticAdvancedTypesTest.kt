@@ -4,6 +4,7 @@ import classes.SparkTestBase
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class PragmaticAdvancedTypesTest : SparkTestBase() {
@@ -50,9 +51,20 @@ class PragmaticAdvancedTypesTest : SparkTestBase() {
             ApiResponse.Success("More data")
         )
         val df = data.toDataFrame(spark)
-        df.show()
         val results = df.toKotlinList<ApiResponse>()
-        assertEquals(data, results)
+
+        assertEquals(data.size, results.size, "Result list size should match original data size")
+
+        // Assert each element individually
+        assertTrue(results[0] is ApiResponse.Success, "First element should be ApiResponse.Success")
+        assertEquals("Data for request 1", (results[0] as ApiResponse.Success).data, "First success data should match")
+
+        assertTrue(results[1] is ApiResponse.Error, "Second element should be ApiResponse.Error")
+        assertEquals(404, (results[1] as ApiResponse.Error).errorCode, "Error code should match")
+        assertEquals("Not Found", (results[1] as ApiResponse.Error).message, "Error message should match")
+
+        assertTrue(results[2] is ApiResponse.Success, "Third element should be ApiResponse.Success")
+        assertEquals("More data", (results[2] as ApiResponse.Success).data, "Second success data should match")
     }
 
     // --- Test for kotlinx-datetime ---
@@ -73,7 +85,6 @@ class PragmaticAdvancedTypesTest : SparkTestBase() {
             )
         )
         val df = data.toDataFrame(spark)
-        df.show()
         val results = df.toKotlinList<Event>()
         assertEquals(data, results)
     }
