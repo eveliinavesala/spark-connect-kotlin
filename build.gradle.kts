@@ -2,9 +2,10 @@ import org.gradle.api.file.DuplicatesStrategy
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "1.9.24"
     application
-    id("com.github.johnrengelman.shadow") version "8.1.1"
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.shadow)
 }
 
 version = "1.0"
@@ -16,30 +17,28 @@ application {
     )
 }
 
-repositories {
-    mavenCentral()
-}
-
 dependencies {
     constraints {
-        implementation("org.apache.commons:commons-lang3:3.18.0") {
+        implementation(libs.commons.lang3) {
             because("Address security vulnerability in older versions of commons-lang3")
         }
-        testImplementation("org.apache.commons:commons-compress:1.26.0") {
+        testImplementation(libs.commons.compress) {
             because("Address security vulnerabilities CVE-2024-25710 and CVE-2024-26308")
         }
     }
 
-    implementation("org.apache.spark:spark-connect-client-jvm_2.13:4.0.0") {
+    implementation(libs.kotlin.reflect)
+    implementation(libs.kotlinx.datetime)
+    implementation(libs.kotlinx.serialization.core)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.spark.connect.client) {
         exclude(group = "org.slf4j", module = "jul-to-slf4j")
     }
-    implementation(kotlin("reflect"))
-    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.0")
 
-    testImplementation(kotlin("test"))
-    testImplementation("org.testcontainers:testcontainers:1.19.8")
-    testImplementation("org.testcontainers:junit-jupiter:1.19.8")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.2")
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.testcontainers.core)
+    testImplementation(libs.testcontainers.junit.jupiter)
+    testRuntimeOnly(libs.junit.jupiter.engine)
 }
 
 tasks.processResources {
@@ -100,5 +99,5 @@ tasks.test {
 }
 
 kotlin {
-    jvmToolchain(17)
+    jvmToolchain(21)
 }
