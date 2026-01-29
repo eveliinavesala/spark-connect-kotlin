@@ -1,12 +1,12 @@
 [versions]
-kotlin = "1.9.24"
+kotlin = "2.3.0"
 spark = "4.0.0"
 kotlinx-datetime = "0.6.0"
-kotlinx-serialization = "1.9.24"
-commons-lang3 = "3.18.0"
-commons-compress = "1.26.0"
+kotlinx-serialization = "1.10.0"
+commons-lang3 = "3.20.0"
+commons-compress = "1.27.0"
 testcontainers = "1.19.8"
-junit-jupiter = "5.10.2"
+junit-jupiter = "6.0.1"
 shadow = "9.2.0"
 
 [libraries]
