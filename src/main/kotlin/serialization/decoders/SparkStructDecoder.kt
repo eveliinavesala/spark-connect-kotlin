@@ -1,4 +1,4 @@
-package encoder.kotlin
+package serialization.decoders
 
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.toKotlinInstant

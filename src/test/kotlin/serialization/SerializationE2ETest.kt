@@ -1,9 +1,10 @@
-package encoder.kotlin
+package serialization
 
 import classes.SparkTestBase
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import org.apache.spark.sql.functions.*
+import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -265,7 +266,7 @@ class SerializationE2ETest : SparkTestBase() {
         val counts = df.groupBy("age").count()
         counts.show()
 
-        assertEquals(3, counts.count())
+        Assertions.assertEquals(3, counts.count())
     }
 
     @Test
@@ -273,7 +274,7 @@ class SerializationE2ETest : SparkTestBase() {
         val emptyList = emptyList<SimplePerson>()
         val df = emptyList.toSerializableDataFrame(spark)
 
-        assertEquals(0, df.count())
+        Assertions.assertEquals(0, df.count())
 
         val result = df.toSerializableKotlinList<SimplePerson>()
         assertTrue(result.isEmpty())
@@ -288,7 +289,7 @@ class SerializationE2ETest : SparkTestBase() {
 
         val df = people.toSerializableDataFrame(spark)
 
-        assertEquals(1000, df.count())
+        Assertions.assertEquals(1000, df.count())
 
         // Perform some operations
         val over30 = df.filter(col("age").gt(30))
@@ -320,7 +321,7 @@ class SerializationE2ETest : SparkTestBase() {
 
         assertEquals(2, result.size)
         assertEquals(listOf("kotlin", "spark"), result[0].tags)
-        assertEquals(95, result[0].scores["test1"])
+        Assertions.assertEquals(95, result[0].scores["test1"])
         assertEquals(listOf(1, 2, 3), result[0].numbers)
     }
 
@@ -395,8 +396,8 @@ class SerializationE2ETest : SparkTestBase() {
         val df2 = people2.toSerializableDataFrame(spark)
 
         // Both should work correctly
-        assertEquals(1, df1.count())
-        assertEquals(1, df2.count())
+        Assertions.assertEquals(1, df1.count())
+        Assertions.assertEquals(1, df2.count())
 
         val result1 = df1.toSerializableKotlinList<SimplePerson>()
         val result2 = df2.toSerializableKotlinList<SimplePerson>()

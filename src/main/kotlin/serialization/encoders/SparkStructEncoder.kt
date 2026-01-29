@@ -1,4 +1,4 @@
-package encoder.kotlin
+package serialization.encoders
 
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
@@ -13,6 +13,7 @@ import kotlinx.serialization.encoding.CompositeEncoder
 import kotlinx.serialization.modules.SerializersModule
 import java.sql.Date
 import java.sql.Timestamp
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 
 /**
  * Encoder for struct/object fields within a parent structure.
@@ -71,7 +72,7 @@ internal class SparkStructEncoder(
 
     override fun endStructure(descriptor: SerialDescriptor) {
         // Convert fieldValues to a GenericRow instead of adding the raw list
-        val row = org.apache.spark.sql.catalyst.expressions.GenericRow(fieldValues.toTypedArray())
+        val row = GenericRow(fieldValues.toTypedArray())
         parent.addValue(row)
     }
 
@@ -114,7 +115,7 @@ internal class SparkNestedStructEncoder(
 
     override fun endStructure(descriptor: SerialDescriptor) {
         // Convert fieldValues to a GenericRow instead of adding the raw list
-        val row = org.apache.spark.sql.catalyst.expressions.GenericRow(fieldValues.toTypedArray())
+        val row = GenericRow(fieldValues.toTypedArray())
         parent.addValue(row)
     }
 }

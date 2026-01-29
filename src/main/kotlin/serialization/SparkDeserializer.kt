@@ -1,7 +1,8 @@
-package encoder.kotlin
+package serialization
 
 import kotlinx.serialization.KSerializer
 import org.apache.spark.sql.Row
+import serialization.decoders.SparkRowDecoder
 
 /**
  * Deserializer that converts Spark Rows to Kotlin objects.

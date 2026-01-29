@@ -1,4 +1,4 @@
-package encoder.kotlin
+package serialization.encoders
 
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
@@ -12,6 +12,7 @@ import kotlinx.serialization.modules.SerializersModule
 import scala.jdk.javaapi.CollectionConverters
 import java.sql.Date
 import java.sql.Timestamp
+import scala.collection.immutable.Map
 
 /**
  * Encoders for collection types (List and Map).
@@ -71,7 +72,7 @@ internal class SparkListEncoder(
     override fun endStructure(descriptor: SerialDescriptor) {
         val scalaSeq = CollectionConverters.asScala(elements).toSeq()
         when (parent) {
-            is SparkRowEncoder -> parent.addValue(scalaSeq)
+            is SparkRowEncoder    -> parent.addValue(scalaSeq)
             is SparkStructEncoder -> parent.addValue(scalaSeq)
         }
     }
@@ -124,12 +125,12 @@ internal class SparkMapEncoder(
     override fun endStructure(descriptor: SerialDescriptor) {
         val javaMap = keys.zip(values).toMap()
         // Convert Java map to Scala immutable map
-        val scalaMap = scala.collection.immutable.Map.from(
+        val scalaMap = Map.from(
             CollectionConverters.asScala(javaMap)
         )
 
         when (parent) {
-            is SparkRowEncoder -> parent.addValue(scalaMap)
+            is SparkRowEncoder    -> parent.addValue(scalaMap)
             is SparkStructEncoder -> parent.addValue(scalaMap)
         }
     }

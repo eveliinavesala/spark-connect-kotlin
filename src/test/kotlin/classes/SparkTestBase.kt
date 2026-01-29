@@ -4,13 +4,12 @@ import org.apache.spark.sql.SparkSession
 import org.junit.jupiter.api.AfterAll
 import org.testcontainers.containers.GenericContainer
 import org.testcontainers.containers.wait.strategy.Wait
+import org.testcontainers.utility.MountableFile
 import java.io.File
+import java.time.Duration
+
 
 abstract class SparkTestBase {
-
-    // Provide direct access to the singleton session for subclasses
-    protected val spark: SparkSession
-        get() = Companion.spark
 
     companion object {
         private val projectRoot = System.getProperty("user.dir")
@@ -18,10 +17,24 @@ abstract class SparkTestBase {
         // Singleton container
         private val sparkContainer: GenericContainer<*> by lazy {
             println("--- Starting single Spark container for the test suite ---")
-            GenericContainer("spark-server")
+            GenericContainer("spark:latest")
                 .withExposedPorts(15002)
-                .withFileSystemBind("$projectRoot/src/test/resources/data", "/data")
-                .waitingFor(Wait.forListeningPort())
+                .withCopyToContainer(
+                    MountableFile.forClasspathResource("data"),
+                    "/data"
+                )
+                .withCommand(
+                    "bash", "-c",
+                    "/opt/spark/bin/spark-submit " +
+                    "--class org.apache.spark.sql.connect.service.SparkConnectServer " +
+                    "--master local[*] " +
+                    "--conf spark.connect.grpc.binding.port=15002 " +
+                    "/opt/spark/jars/spark-connect_*.jar"
+                )
+                .waitingFor(
+                    Wait.forLogMessage(".*Spark Connect server started.*", 1)
+                        .withStartupTimeout(Duration.ofMinutes(2))
+                )
                 .apply { start() }
         }
 
@@ -44,7 +57,9 @@ abstract class SparkTestBase {
         @AfterAll
         @JvmStatic
         fun teardown() {
-            // Do not stop the session here. Let Testcontainers manage the lifecycle.
+            // Testcontainers manages the lifecycle. But good practice and safenet for local runs.
+            println("--- Stopping Spark container ---")
+            sparkContainer.stop()
         }
     }
 }

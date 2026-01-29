@@ -1,5 +1,6 @@
-package encoder.kotlin
+package serialization
 
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.serializer
 import org.apache.spark.sql.types.*
 import org.junit.jupiter.api.Assertions.*
@@ -48,7 +49,7 @@ class SchemaInferenceTest {
         assertEquals(DataTypes.StringType, schema.fields()[8].dataType()) // char -> string
     }
 
-    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+    @OptIn(ExperimentalSerializationApi::class)
     @Test
     fun `test nullable fields schema inference`() {
         val serializer = serializer<NullableFields>()
@@ -204,7 +205,7 @@ class SchemaInferenceTest {
         assertTrue(addressField.dataType() is StructType)
     }
 
-    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+    @OptIn(ExperimentalSerializationApi::class)
     @Test
     fun `test datetime types schema inference`() {
         val serializer = serializer<EventWithDates>()

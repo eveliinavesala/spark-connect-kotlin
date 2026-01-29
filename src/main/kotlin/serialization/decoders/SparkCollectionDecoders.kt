@@ -1,4 +1,4 @@
-package encoder.kotlin
+package serialization.decoders
 
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerializationException

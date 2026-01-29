@@ -1,4 +1,4 @@
-package encoder.kotlin
+package serialization.decoders
 
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.ExperimentalSerializationApi

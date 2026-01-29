@@ -1,9 +1,10 @@
-package encoder.kotlin
+package serialization
 
 import kotlinx.serialization.KSerializer
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types.StructType
+import serialization.encoders.SparkRowEncoder
 
 /**
  * Serializer that converts Kotlin objects to Spark Rows.

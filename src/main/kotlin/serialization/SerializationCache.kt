@@ -1,4 +1,4 @@
-package encoder.kotlin
+package serialization
 
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.descriptors.SerialDescriptor

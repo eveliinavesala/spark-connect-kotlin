@@ -1,4 +1,4 @@
-package encoder.kotlin
+package serialization
 
 import kotlinx.serialization.serializer
 import org.junit.jupiter.api.Assertions.*

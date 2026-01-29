@@ -1,7 +1,8 @@
-package encoder.kotlin
+package serialization
 
 import kotlinx.serialization.serializer
 import org.apache.spark.sql.Row
+import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 
@@ -258,11 +259,11 @@ class SparkRowEncoderTest {
         assertEquals(3, tags.size)
 
         val scores = row.getJavaMap<String, Int>(1)
-        assertEquals(95, scores["math"])
-        assertEquals(88, scores["science"])
+        Assertions.assertEquals(95, scores["math"])
+        Assertions.assertEquals(88, scores["science"])
 
         val numbers = row.getList<Int>(2)
         assertEquals(5, numbers.size)
-        assertEquals(1, numbers.get(0))
+        Assertions.assertEquals(1, numbers.get(0))
     }
 }

@@ -1,5 +1,6 @@
-package encoder.kotlin
+package serialization
 
+import serialization.util.LazySerializableRowList
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.serializer
 import org.apache.spark.sql.Dataset

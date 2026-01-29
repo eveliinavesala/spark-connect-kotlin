@@ -1,7 +1,8 @@
-package encoder.kotlin
+package serialization
 
 import kotlinx.serialization.serializer
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
+import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import scala.jdk.javaapi.CollectionConverters
@@ -18,7 +19,7 @@ class SparkRowDecoderTest {
         val serializer = serializer<SimplePerson>()
         val schema = inferSparkSchema(serializer.descriptor)
 
-        val row = GenericRowWithSchema(arrayOf("Alice", 30), schema)
+        val row = GenericRowWithSchema(arrayOf<Any?>("Alice", 30), schema)
 
         val sparkDeserializer = SparkDeserializer(serializer)
         val result = sparkDeserializer.deserialize(row)
@@ -33,7 +34,7 @@ class SparkRowDecoderTest {
         val schema = inferSparkSchema(serializer.descriptor)
 
         val row = GenericRowWithSchema(
-            arrayOf(
+            arrayOf<Any?>(
                 true,
                 42.toByte(),
                 1000.toShort(),
@@ -66,7 +67,7 @@ class SparkRowDecoderTest {
         val serializer = serializer<NullableFields>()
         val schema = inferSparkSchema(serializer.descriptor)
 
-        val row = GenericRowWithSchema(arrayOf("Alice", null, null), schema)
+        val row = GenericRowWithSchema(arrayOf<Any?>("Alice", null, null), schema)
 
         val sparkDeserializer = SparkDeserializer(serializer)
         val result = sparkDeserializer.deserialize(row)
@@ -81,13 +82,13 @@ class SparkRowDecoderTest {
         val serializer = serializer<NullableFields>()
         val schema = inferSparkSchema(serializer.descriptor)
 
-        val row = GenericRowWithSchema(arrayOf("Bob", 25, "bob@example.com"), schema)
+        val row = GenericRowWithSchema(arrayOf<Any?>("Bob", 25, "bob@example.com"), schema)
 
         val sparkDeserializer = SparkDeserializer(serializer)
         val result = sparkDeserializer.deserialize(row)
 
         assertEquals("Bob", result.name)
-        assertEquals(25, result.age)
+        Assertions.assertEquals(25, result.age)
         assertEquals("bob@example.com", result.email)
     }
 
@@ -97,14 +98,14 @@ class SparkRowDecoderTest {
         val addressSerializer = serializer<Address>()
         val addressSchema = inferSparkSchema(addressSerializer.descriptor)
         val addressRow = GenericRowWithSchema(
-            arrayOf("123 Main St", "Springfield", "12345"),
+            arrayOf<Any?>("123 Main St", "Springfield", "12345"),
             addressSchema
         )
 
         // Now create the person with address
         val serializer = serializer<PersonWithAddress>()
         val schema = inferSparkSchema(serializer.descriptor)
-        val row = GenericRowWithSchema(arrayOf("Alice", 30, addressRow), schema)
+        val row = GenericRowWithSchema(arrayOf<Any?>("Alice", 30, addressRow), schema)
 
         val sparkDeserializer = SparkDeserializer(serializer)
         val result = sparkDeserializer.deserialize(row)
@@ -123,7 +124,7 @@ class SparkRowDecoderTest {
 
         val foods = listOf("Pizza", "Pasta", "Salad")
         val scalaFoods = CollectionConverters.asScala(foods).toSeq()
-        val row = GenericRowWithSchema(arrayOf("Alice", scalaFoods), schema)
+        val row = GenericRowWithSchema(arrayOf<Any?>("Alice", scalaFoods), schema)
 
         val sparkDeserializer = SparkDeserializer(serializer)
         val result = sparkDeserializer.deserialize(row)
@@ -141,7 +142,7 @@ class SparkRowDecoderTest {
         val schema = inferSparkSchema(serializer.descriptor)
 
         val emptyScalaList = CollectionConverters.asScala(emptyList<String>()).toSeq()
-        val row = GenericRowWithSchema(arrayOf("Bob", emptyScalaList), schema)
+        val row = GenericRowWithSchema(arrayOf<Any?>("Bob", emptyScalaList), schema)
 
         val sparkDeserializer = SparkDeserializer(serializer)
         val result = sparkDeserializer.deserialize(row)
@@ -157,7 +158,7 @@ class SparkRowDecoderTest {
 
         val attributes = mapOf("email" to "alice@example.com", "phone" to "555-1234")
         val scalaMap = CollectionConverters.asScala(attributes)
-        val row = GenericRowWithSchema(arrayOf("Alice", scalaMap), schema)
+        val row = GenericRowWithSchema(arrayOf<Any?>("Alice", scalaMap), schema)
 
         val sparkDeserializer = SparkDeserializer(serializer)
         val result = sparkDeserializer.deserialize(row)
@@ -174,7 +175,7 @@ class SparkRowDecoderTest {
         val schema = inferSparkSchema(serializer.descriptor)
 
         val emptyScalaMap = CollectionConverters.asScala(emptyMap<String, String>())
-        val row = GenericRowWithSchema(arrayOf("Bob", emptyScalaMap), schema)
+        val row = GenericRowWithSchema(arrayOf<Any?>("Bob", emptyScalaMap), schema)
 
         val sparkDeserializer = SparkDeserializer(serializer)
         val result = sparkDeserializer.deserialize(row)
@@ -188,7 +189,7 @@ class SparkRowDecoderTest {
         val serializer = serializer<PersonWithEnum>()
         val schema = inferSparkSchema(serializer.descriptor)
 
-        val row = GenericRowWithSchema(arrayOf("Alice", "ACTIVE"), schema)
+        val row = GenericRowWithSchema(arrayOf<Any?>("Alice", "ACTIVE"), schema)
 
         val sparkDeserializer = SparkDeserializer(serializer)
         val result = sparkDeserializer.deserialize(row)
@@ -204,7 +205,7 @@ class SparkRowDecoderTest {
 
         // Create a row for a Dog instance with discriminator
         val row = GenericRowWithSchema(
-            arrayOf("encoder.kotlin.Dog", "Buddy", "Golden Retriever"),
+            arrayOf<Any?>("encoder.kotlin.Dog", "Buddy", "Golden Retriever"),
             schema
         )
 
@@ -229,7 +230,7 @@ class SparkRowDecoderTest {
         val scalaScores = CollectionConverters.asScala(scores)
         val scalaNumbers = CollectionConverters.asScala(numbers).toSeq()
 
-        val row = GenericRowWithSchema(arrayOf(scalaTags, scalaScores, scalaNumbers), schema)
+        val row = GenericRowWithSchema(arrayOf<Any?>(scalaTags, scalaScores, scalaNumbers), schema)
 
         val sparkDeserializer = SparkDeserializer(serializer)
         val result = sparkDeserializer.deserialize(row)
@@ -238,12 +239,12 @@ class SparkRowDecoderTest {
         assertEquals("tag1", result.tags[0])
 
         assertEquals(2, result.scores.size)
-        assertEquals(95, result.scores["math"])
-        assertEquals(88, result.scores["science"])
+        Assertions.assertEquals(95, result.scores["math"])
+        Assertions.assertEquals(88, result.scores["science"])
 
         assertEquals(5, result.numbers.size)
-        assertEquals(1, result.numbers[0])
-        assertEquals(5, result.numbers[4])
+        Assertions.assertEquals(1, result.numbers[0])
+        Assertions.assertEquals(5, result.numbers[4])
     }
 
     @Test
