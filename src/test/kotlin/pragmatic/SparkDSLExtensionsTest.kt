@@ -1,7 +1,7 @@
 package pragmatic
 
 import classes.SparkTestBase
-import integration_pack.*
+import dataframe.*
 import org.apache.spark.sql.functions.col
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test

@@ -1,4 +1,4 @@
-package integration_pack
+package dataframe
 
 import org.apache.spark.sql.api.java.UDF1
 import org.apache.spark.sql.expressions.UserDefinedFunction
@@ -19,7 +19,7 @@ object UDFs {
 
     val categorizePopularity: UserDefinedFunction by lazy {
         udf(
-            { popularity: Int ->
+            UDF1 { popularity: Int ->
                 when {
                     popularity > 60 -> "Global Hit"
                     popularity > 30 -> "Mainstream"

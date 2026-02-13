@@ -1,8 +1,6 @@
 package dataframe
 
 import classes.SparkTestBase
-import integration_pack.toDataFrame
-import integration_pack.toKotlinList
 import org.apache.spark.api.java.function.ForeachFunction
 import org.apache.spark.api.java.function.ForeachPartitionFunction
 import org.apache.spark.api.java.function.ReduceFunction

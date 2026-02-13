@@ -1,9 +1,7 @@
 package dataframe
 
 import classes.SparkTestBase
-import integration_pack.examples.Point
-import integration_pack.examples.PointUDT
-import integration_pack.toKotlinList
+import dataframe.examples.Point
 import org.apache.spark.sql.RowFactory
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.types.*

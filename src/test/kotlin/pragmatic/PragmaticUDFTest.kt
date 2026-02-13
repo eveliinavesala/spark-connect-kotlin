@@ -1,8 +1,8 @@
 package pragmatic
 
 import classes.SparkTestBase
-import integration_pack.UDFs
-import integration_pack.toDataFrame
+import dataframe.UDFs
+import dataframe.toDataFrame
 import org.apache.spark.sql.functions.callUDF
 import org.apache.spark.sql.functions.col
 import org.junit.jupiter.api.Assertions.assertEquals

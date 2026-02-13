@@ -1,12 +1,10 @@
-package integration_pack
+package dataframe
 
 import org.apache.spark.sql.Column
 import org.apache.spark.sql.Dataset
-import org.apache.spark.sql.Encoders
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions.col
-import scala.Function1
 import kotlin.reflect.KProperty1
 
 // ============================================================================
@@ -60,12 +58,8 @@ inline fun <T, R> Dataset<T>.withCached(block: (Dataset<T>) -> R): R {
  * DataFrame-specific transform extension for chaining transformations.
  */
 fun Dataset<Row>.transformDF(t: (Dataset<Row>) -> Dataset<Row>): Dataset<Row> {
-    val scalaFunc = object : Function1<Dataset<Row>, Dataset<Row>> {
-        override fun apply(v1: Dataset<Row>): Dataset<Row> {
-            return t(v1)
-        }
-    }
-    return this.transform<Row, Dataset<Row>>(scalaFunc)
+    // Explicitly specify both type arguments: <Element Type, Return Dataset Type>
+    return this.transform<Row, Dataset<Row>> { v1 -> t(v1) }
 }
 
 /**
@@ -84,3 +78,24 @@ inline fun <reified T : Any> Dataset<Row>.selectTyped(
 
 inline fun <reified T> Row.getNullable(name: String): T? =
     if (this.isNullAt(this.fieldIndex(name))) null else this.getAs<T>(name)
+
+// ============================================================================
+// D) Lifecycle Wrappers
+// ============================================================================
+
+/**
+ * Helper to manage the SparkSession lifecycle.
+ */
+inline fun <T> withSpark(
+    master: String = "sc://localhost:15002",
+    block: (SparkSession) -> T
+): T {
+    val spark = SparkSession.builder()
+        .remote(master)
+        .getOrCreate()
+    return try {
+        block(spark)
+    } finally {
+        spark.stop()
+    }
+}

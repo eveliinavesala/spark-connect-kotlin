@@ -1,4 +1,4 @@
-package integration_pack
+package dataframe
 
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
@@ -84,7 +84,10 @@ internal class RowSerializer private constructor(
                 obj is Triple<*, *, *> && fieldName == "_2" -> convertKotlinValueToSpark(obj.second)
                 obj is Triple<*, *, *> && fieldName == "_3" -> convertKotlinValueToSpark(obj.third)
                 property != null -> convertKotlinValueToSpark(property.call(obj))
-                else -> error("Property '$fieldName' not found on object of type ${obj::class.simpleName}")
+                else -> {
+                    val runtimeProp = obj::class.memberProperties.find { it.name == fieldName }
+                    runtimeProp?.let { convertKotlinValueToSpark(it.call(obj)) }
+                }
             }
         }
     }
@@ -197,27 +200,25 @@ internal fun <T : Any> Dataset<Row>.toKotlinClassListInternal(kType: KType): Lis
 private fun inferSchemaInternal(kType: KType): StructType {
     val kClass = kType.jvmErasure
     
-    if (kClass == Pair::class) {
-        val firstType = kType.arguments[0].type!!
-        val secondType = kType.arguments[1].type!!
-        return StructType(arrayOf(
-            StructField("_1", kotlinTypeToSparkType(firstType), firstType.isMarkedNullable, Metadata.empty()),
-            StructField("_2", kotlinTypeToSparkType(secondType), secondType.isMarkedNullable, Metadata.empty())
-        ))
-    }
-    
-    if (kClass == Triple::class) {
-        val firstType = kType.arguments[0].type!!
-        val secondType = kType.arguments[1].type!!
-        val thirdType = kType.arguments[2].type!!
-        return StructType(arrayOf(
-            StructField("_1", kotlinTypeToSparkType(firstType), firstType.isMarkedNullable, Metadata.empty()),
-            StructField("_2", kotlinTypeToSparkType(secondType), secondType.isMarkedNullable, Metadata.empty()),
-            StructField("_3", kotlinTypeToSparkType(thirdType), thirdType.isMarkedNullable, Metadata.empty())
-        ))
+    if (kClass == Pair::class || kClass == Triple::class) {
+        val fields = kType.arguments.mapIndexed { index, arg ->
+            val type = arg.type!!
+            StructField("_" + (index + 1), kotlinTypeToSparkType(type), type.isMarkedNullable, Metadata.empty())
+        }
+        return StructType(fields.toTypedArray())
     }
 
     val fields = if (kClass.isSealed) {
+        // Check for simpleName collisions in sealed hierarchy
+        val simpleNames = kClass.sealedSubclasses.map { it.simpleName }
+        if (simpleNames.distinct().size != simpleNames.size) {
+            val duplicates = simpleNames.groupingBy { it }.eachCount().filter { it.value > 1 }.keys
+            throw IllegalArgumentException(
+                "Sealed class hierarchy '${kClass.simpleName}' contains subclasses with duplicate simple names: $duplicates. " +
+                "This causes ambiguity in serialization. Please rename subclasses to be unique."
+            )
+        }
+
         (kClass.sealedSubclasses.flatMap { it.memberProperties }.distinctBy { it.name }.map {
             StructField(it.name, kotlinTypeToSparkType(it.returnType), true, Metadata.empty())
         } + StructField("_type", DataTypes.StringType, false, Metadata.empty()))

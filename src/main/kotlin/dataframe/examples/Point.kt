@@ -1,4 +1,4 @@
-package integration_pack.examples
+package dataframe.examples
 
 import org.apache.spark.sql.types.SQLUserDefinedType
 import java.io.Serializable

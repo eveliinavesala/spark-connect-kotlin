@@ -1,4 +1,4 @@
-package integration_pack.examples
+package dataframe.examples
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.RowFactory

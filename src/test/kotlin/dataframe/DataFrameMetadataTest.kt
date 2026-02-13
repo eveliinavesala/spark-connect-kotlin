@@ -1,11 +1,9 @@
 package dataframe
 
 import classes.SparkTestBase
-import integration_pack.toDataFrame
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.DataTypes
-import org.apache.spark.sql.types.StructType
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
