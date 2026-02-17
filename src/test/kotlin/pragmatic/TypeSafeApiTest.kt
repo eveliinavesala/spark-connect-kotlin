@@ -1,8 +1,8 @@
 package pragmatic
 
 import classes.SparkTestBase
-import dataframe.selectTyped
-import dataframe.toDataFrame
+import reflection.selectTyped
+import reflection.toDataFrame
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test

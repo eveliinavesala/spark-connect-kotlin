@@ -12,6 +12,8 @@ import org.apache.spark.sql.types.StructType
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import reflection.toDataFrame
+import reflection.toKotlinList
 
 class DataFrameJoinsTest : SparkTestBase() {
 

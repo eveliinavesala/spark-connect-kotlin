@@ -7,6 +7,7 @@ import org.apache.spark.sql.types.DataTypes
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import reflection.toDataFrame
 import java.util.Arrays
 import java.util.stream.Collectors
 

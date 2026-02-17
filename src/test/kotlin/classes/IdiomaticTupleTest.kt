@@ -1,7 +1,7 @@
 package classes
 
-import dataframe.toDataFrame
-import dataframe.toKotlinList
+import reflection.toDataFrame
+import reflection.toKotlinList
 import org.apache.spark.sql.RowFactory
 import org.apache.spark.sql.types.DataTypes
 import org.junit.jupiter.api.Assertions.assertEquals

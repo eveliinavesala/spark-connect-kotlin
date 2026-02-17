@@ -3,7 +3,9 @@ package classes
 import org.apache.spark.sql.SparkSession
 import org.testcontainers.containers.GenericContainer
 import org.testcontainers.containers.wait.strategy.Wait
+import org.testcontainers.utility.MountableFile
 import java.io.File
+import java.time.Duration
 
 /**
  * A true singleton object to manage a single, shared Spark container and SparkSession
@@ -14,10 +16,25 @@ object SparkContainerManager {
 
     val sparkContainer: GenericContainer<*> by lazy {
         println("--- Starting single Spark container for the test suite ---")
-        GenericContainer("spark-server")
+        // Use the image name defined in the Makefile
+        GenericContainer("spark-server:latest")
             .withExposedPorts(15002)
-            .withFileSystemBind("$projectRoot/src/test/resources/data", "/data")
-            .waitingFor(Wait.forListeningPort())
+            .withCopyToContainer(
+                MountableFile.forClasspathResource("data"),
+                "/data"
+            )
+            .withCommand(
+                "bash", "-c",
+                "/opt/spark/bin/spark-submit " +
+                "--class org.apache.spark.sql.connect.service.SparkConnectServer " +
+                "--master local[*] " +
+                "--conf spark.connect.grpc.binding.port=15002 " +
+                "/opt/spark/jars/spark-connect_*.jar"
+            )
+            .waitingFor(
+                Wait.forLogMessage(".*Spark Connect server started.*", 1)
+                    .withStartupTimeout(Duration.ofMinutes(2))
+            )
             .apply { start() }
     }
 

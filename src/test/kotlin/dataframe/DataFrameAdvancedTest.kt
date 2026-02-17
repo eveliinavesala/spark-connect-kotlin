@@ -8,6 +8,10 @@ import org.apache.spark.storage.StorageLevel
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import reflection.times
+import reflection.toDataFrame
+import reflection.toKotlinList
+import reflection.transformDF
 
 class DataFrameAdvancedTest : SparkTestBase() {
 

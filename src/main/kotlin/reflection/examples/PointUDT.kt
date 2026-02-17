@@ -1,4 +1,4 @@
-package dataframe.examples
+package reflection.examples
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.RowFactory

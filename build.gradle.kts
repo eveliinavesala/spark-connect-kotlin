@@ -37,8 +37,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.0")
 
     testImplementation(kotlin("test"))
-    testImplementation("org.testcontainers:testcontainers:1.19.8")
-    testImplementation("org.testcontainers:junit-jupiter:1.19.8")
+    testImplementation("org.testcontainers:testcontainers:2.0.3")
+    testImplementation("org.testcontainers:junit-jupiter:1.21.4")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.2")
 }
 
@@ -92,6 +92,11 @@ tasks.test {
     // Ensure the test fat jar is built before tests are run
     dependsOn(testFatJar)
     useJUnitPlatform()
+    
+    // Pass DOCKER_HOST to the test process if it exists
+    System.getenv("DOCKER_HOST")?.let {
+        environment("DOCKER_HOST", it)
+    }
     
     jvmArgs(
         "--add-opens=java.base/java.nio=ALL-UNNAMED",

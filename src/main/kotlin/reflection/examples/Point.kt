@@ -1,4 +1,4 @@
-package dataframe.examples
+package reflection.examples
 
 import org.apache.spark.sql.types.SQLUserDefinedType
 import java.io.Serializable

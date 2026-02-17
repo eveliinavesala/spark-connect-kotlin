@@ -7,6 +7,8 @@ import org.apache.spark.sql.SaveMode
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import reflection.toDataFrame
+import reflection.toKotlinList
 
 class DataFrameTableTest : SparkTestBase() {
 

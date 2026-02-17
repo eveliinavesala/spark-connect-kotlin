@@ -5,8 +5,12 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import org.apache.spark.sql.RowFactory
+import org.apache.spark.sql.types.StructType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import reflection.toDataFrame
+import reflection.toKotlinList
+import java.sql.Date
 import java.sql.Timestamp
 import java.time.Instant
 import java.time.LocalDate
@@ -49,8 +53,8 @@ class DataFrameTypesTest : SparkTestBase() {
         val data = listOf(
             mapOf(
                 "eventId" to 1,
-                "eventDate" to java.sql.Date.valueOf(today.toString()),
-                "eventTime" to Timestamp.from(java.time.Instant.parse(now.toString()))
+                "eventDate" to Date.valueOf(today.toString()),
+                "eventTime" to Timestamp.from(Instant.parse(now.toString()))
             )
         )
         
@@ -60,7 +64,7 @@ class DataFrameTypesTest : SparkTestBase() {
         }
         
         val df = spark.createDataFrame(rows,
-            org.apache.spark.sql.types.StructType()
+            StructType()
                 .add("eventId", "int")
                 .add("eventDate", "date")
                 .add("eventTime", "timestamp")

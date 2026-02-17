@@ -1,4 +1,4 @@
-package dataframe
+package reflection
 
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
@@ -32,16 +32,16 @@ import kotlin.reflect.typeOf
 // Public API
 // ============================================================================
 
-inline fun <reified T : Any> List<T>.toDataFrame(spark: SparkSession): Dataset<Row> {
-    return spark.createDataFrameFromKotlinList(this, typeOf<T>())
+inline fun <reified T : Any> List<T>.toDataFrame(spark: SparkSession, schema: StructType? = null): Dataset<Row> {
+    return spark.createDataFrameFromKotlinList(this, typeOf<T>(), schema)
 }
 
 inline fun <reified T : Any> Dataset<Row>.toKotlinList(): List<T> {
     return this.toKotlinListFromDataFrame(typeOf<T>())
 }
 
-fun <T : Any> SparkSession.createDataFrameFromKotlinList(data: List<T>, kType: KType): Dataset<Row> {
-    return createDataFrameViaReflectionInternal(data, kType)
+fun <T : Any> SparkSession.createDataFrameFromKotlinList(data: List<T>, kType: KType, schema: StructType? = null): Dataset<Row> {
+    return createDataFrameViaReflectionInternal(data, kType, schema)
 }
 
 fun <T : Any> Dataset<Row>.toKotlinListFromDataFrame(kType: KType): List<T> {
@@ -59,7 +59,17 @@ internal object ReflectionCache {
     private val deserializerCache = ConcurrentHashMap<KType, RowDeserializer<*>>()
     
     fun getSchema(kType: KType): StructType = schemaCache.getOrPut(kType) { inferSchemaInternal(kType) }
-    fun getSerializer(kType: KType): RowSerializer = serializerCache.getOrPut(kType) { RowSerializer.create(kType) }
+    
+    // If a schema is provided, we don't cache the serializer globally to avoid conflicts if the schema varies.
+    // Or we could cache it with a composite key (KType + Schema), but for now, we just create it on demand if schema is present.
+    fun getSerializer(kType: KType, schema: StructType? = null): RowSerializer {
+        return if (schema != null) {
+            RowSerializer.create(kType, schema)
+        } else {
+            serializerCache.getOrPut(kType) { RowSerializer.create(kType) }
+        }
+    }
+    
     @Suppress("UNCHECKED_CAST")
     fun <T : Any> getDeserializer(kType: KType): RowDeserializer<T> = deserializerCache.getOrPut(kType) { RowDeserializer.create<T>(kType) } as RowDeserializer<T>
 }
@@ -84,18 +94,15 @@ internal class RowSerializer private constructor(
                 obj is Triple<*, *, *> && fieldName == "_2" -> convertKotlinValueToSpark(obj.second)
                 obj is Triple<*, *, *> && fieldName == "_3" -> convertKotlinValueToSpark(obj.third)
                 property != null -> convertKotlinValueToSpark(property.call(obj))
-                else -> {
-                    val runtimeProp = obj::class.memberProperties.find { it.name == fieldName }
-                    runtimeProp?.let { convertKotlinValueToSpark(it.call(obj)) }
-                }
+                else -> error("Property '$fieldName' not found on object of type ${obj::class.simpleName}")
             }
         }
     }
     
     companion object {
-        fun create(kType: KType): RowSerializer {
+        fun create(kType: KType, providedSchema: StructType? = null): RowSerializer {
             val kClass = kType.jvmErasure
-            val schema = ReflectionCache.getSchema(kType)
+            val schema = providedSchema ?: ReflectionCache.getSchema(kType)
             val fieldSerializers = schema.fields().map { field ->
                 // For Pair/Triple, we don't need to find the property by name "_1", we handle it in extract
                 val prop = if (kClass == Pair::class || kClass == Triple::class) {
@@ -171,13 +178,13 @@ internal class LazyRowList(private val sourceData: List<Any>, private val serial
     override val size: Int get() = sourceData.size
 }
 
-internal fun SparkSession.createDataFrameViaReflectionInternal(data: List<Any>, kType: KType): Dataset<Row> {
-    val schema = ReflectionCache.getSchema(kType)
+internal fun SparkSession.createDataFrameViaReflectionInternal(data: List<Any>, kType: KType, schema: StructType? = null): Dataset<Row> {
+    val resolvedSchema = schema ?: ReflectionCache.getSchema(kType)
     if (data.isEmpty()) {
-        return this.createDataFrame(emptyList<Row>(), schema)
+        return this.createDataFrame(emptyList<Row>(), resolvedSchema)
     }
-    val serializer = ReflectionCache.getSerializer(kType)
-    return this.createDataFrame(LazyRowList(data, serializer), schema)
+    val serializer = ReflectionCache.getSerializer(kType, resolvedSchema)
+    return this.createDataFrame(LazyRowList(data, serializer), resolvedSchema)
 }
 
 internal fun <T : Any> Dataset<Row>.toKotlinClassListInternal(kType: KType): List<T> {

@@ -1,13 +1,14 @@
 package dataframe
 
 import classes.SparkTestBase
-import dataframe.examples.Point
+import reflection.examples.Point
 import org.apache.spark.sql.RowFactory
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.types.*
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import reflection.toKotlinList
 import java.nio.file.Path
 
 class DataFrameUDTTest : SparkTestBase() {
