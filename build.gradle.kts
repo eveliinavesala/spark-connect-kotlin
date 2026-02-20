@@ -37,9 +37,12 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.0")
 
     testImplementation(kotlin("test"))
-    testImplementation("org.testcontainers:testcontainers:2.0.3")
+    testImplementation("org.testcontainers:testcontainers:1.21.4")
     testImplementation("org.testcontainers:junit-jupiter:1.21.4")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.2")
+    
+    // Delta Lake for Unity Catalog tests
+    testImplementation("io.delta:delta-spark_2.13:3.2.0")
 }
 
 tasks.processResources {

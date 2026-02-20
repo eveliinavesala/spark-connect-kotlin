@@ -1,57 +1,157 @@
 # Spark Connect Kotlin Example
 
-This project demonstrates a basic Kotlin application connecting to a Spark 4.0 cluster using Spark Connect.
+This project demonstrates a Kotlin application connecting to a Spark 4.0 cluster using Spark Connect, with full Unity Catalog integration for table management and schema evolution.
 
 ## Prerequisites
 
 *   [Docker](https://www.docker.com/get-started) must be installed and running.
+*   Docker Compose (included with Docker Desktop).
 *   A Java 17 JDK.
 *   An IDE that supports Gradle projects (e.g., IntelliJ IDEA).
 
-## Setup and Execution
+## Quick Start
 
-There are two main components: the Spark Connect server (running in Docker) and the Kotlin client application.
+### Option 1: Unity Catalog Stack (Recommended)
 
-### 1. Run the Spark Connect Server
+The full Unity Catalog stack includes PostgreSQL, Unity Catalog server, and Spark with Unity integration.
 
-The Spark Connect server is packaged in a Docker container for easy setup.
-
-**Build the Docker image:**
-Open a terminal in the project root and run the following command. You only need to do this once.
 ```sh
-make build
-```
+# Build and start all services
+make uc-start
 
-**Run the Docker container:**
-After the image is built, start the Spark Connect server with this command:
-```sh
-make run
-```
-This will start a container with the Spark server and expose the Spark Connect port `15002`. The server may take 15-20 seconds to initialize fully. You can check the container logs to see when the service is ready.
-
-### 2. Run the Kotlin Application
-
-Once the Docker container is running, you can execute the client application.
-
-1.  Open the project in your IDE and let Gradle sync the dependencies.
-2.  Navigate to `src/main/kotlin/app/kotlin_spark/Main.kt`.
-3.  Run the `main` function.
-
-You may run your application also with make.
-```sh
+# Run your application
 make app
+
+# Run tests
+make uc-test
+
+# View logs
+make uc-logs
+
+# Stop services
+make uc-down
+
+# Clean up (including data volumes)
+make uc-clean
 ```
 
-If successful, you will see a DataFrame printed to the console, confirming that the Kotlin application has successfully connected to the Spark server and executed a query.
+### Option 2: Simple Spark Server (Legacy)
 
-## Running Tests
-
-This project uses [Testcontainers](https://www.testcontainers.org/) to automatically manage a Spark container for running unit and integration tests.
-
-To run the tests, execute the following command in your terminal:
+For basic Spark Connect without Unity Catalog:
 
 ```sh
+# Build and run standalone Spark server
+make build
+make run
+
+# Run application
+make app
+
+# Run tests
 make test
 ```
 
-This will download the necessary Docker image, start the Spark container, run the tests, and then shut down the container. You can also run the tests directly from your IDE.
+## Unity Catalog Integration
+
+This project includes a production-ready Unity Catalog setup with PostgreSQL backend for persistent metadata storage. Integration uses Unity Catalog's **REST API** for catalog operations.
+
+> **Note:** This implementation uses the Unity Catalog REST API instead of the Spark connector due to ANTLR dependency conflicts between Delta Lake 3.2.0 and Spark 4.0.0. See [docs/UNITY_CATALOG_SETUP.md](docs/UNITY_CATALOG_SETUP.md) for details.
+
+### Architecture
+
+The Unity Catalog stack consists of three services:
+
+- **PostgreSQL** (port 5432): Persistent metadata storage
+- **Unity Catalog** (port 8080): Catalog server with REST API
+- **Spark Connect** (port 15002): Vanilla Spark 4.0 server (no Unity Catalog connector)
+
+### Using Unity Catalog in Code
+
+The project provides two ways to interact with Unity Catalog:
+
+#### 1. REST API Client (Recommended for catalog operations)
+
+```kotlin
+import unity_catalog.UnityCatalogRestClient
+
+val baseUrl = "http://localhost:8080"
+
+// Create catalog and schema
+UnityCatalogRestClient.createCatalog(baseUrl, "my_catalog", "Test catalog")
+UnityCatalogRestClient.createSchema(baseUrl, "my_catalog", "my_schema", "Test schema")
+
+// Create table with EXTERNAL type
+val columns = listOf(
+    mapOf("name" to "id", "type_name" to "INT", "nullable" to false, "position" to 0),
+    mapOf("name" to "name", "type_name" to "STRING", "nullable" to false, "position" to 1),
+    mapOf("name" to "price", "type_name" to "DOUBLE", "nullable" to false, "position" to 2)
+)
+
+UnityCatalogRestClient.createTable(
+    baseUrl = baseUrl,
+    catalogName = "my_catalog",
+    schemaName = "my_schema",
+    tableName = "products",
+    columns = columns,
+    storageLocation = "/tmp/data/products",
+    dataSourceFormat = "DELTA"
+)
+
+// List and query
+val tables = UnityCatalogRestClient.listTables(baseUrl, "my_catalog", "my_schema")
+val tableInfo = UnityCatalogRestClient.getTable(baseUrl, "my_catalog.my_schema.products")
+```
+
+#### 2. Type-Safe Schema Generator
+
+The `UnityCatalogIntegrator` provides type-safe SQL generation from Kotlin data classes:
+
+```kotlin
+import unity_catalog.UnityCatalogIntegrator
+
+data class Product(val id: Int, val name: String, val price: Double)
+
+// Generate CREATE TABLE SQL from data class
+val sql = UnityCatalogIntegrator.generateCreateSQL<Product>(
+    tableName = "my_catalog.my_schema.products",
+    format = "DELTA"
+)
+println(sql)
+// Output:
+// CREATE TABLE my_catalog.my_schema.products (
+//   id INT NOT NULL,
+//   name STRING NOT NULL,
+//   price DOUBLE NOT NULL
+// ) USING DELTA
+```
+
+### Unity Catalog Commands
+
+```sh
+make uc-build        # Build all images
+make uc-start        # Build and start services
+make uc-up           # Start services
+make uc-down         # Stop services
+make uc-clean        # Stop and remove all data
+make uc-restart      # Restart all services
+make uc-logs         # Show all logs
+make uc-logs-unity   # Show Unity Catalog logs
+make uc-logs-spark   # Show Spark logs
+make uc-logs-postgres # Show PostgreSQL logs
+make uc-status       # Check service health
+make uc-test         # Run tests with UC stack
+```
+
+## Running Tests
+
+This project uses [Testcontainers](https://www.testcontainers.org/) to automatically manage the full Unity Catalog stack for testing.
+
+```sh
+# Run all tests with Unity Catalog
+make uc-test
+
+# Run tests with detailed output
+make uc-stacktrace
+```
+
+Tests automatically start PostgreSQL, Unity Catalog, and Spark containers, then run the full test suite including Unity Catalog integration tests.
