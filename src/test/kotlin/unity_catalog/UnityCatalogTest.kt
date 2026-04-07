@@ -23,8 +23,8 @@ class UnityCatalogTest : SparkTestBase() {
 
     @Test
     fun `registerTable should execute without error`() {
-        // We use a temporary view name or a managed table name that Spark supports in local mode
-        // "main.default" might not exist in the test container, so we use just "products_table"
+        // A simple table name is used rather than a qualified name (e.g. "main.default"),
+        // as the latter may not exist in the test container environment.
         val tableName = "products_table"
         
         // Use PARQUET because the test container might not have Delta Lake installed

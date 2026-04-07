@@ -1,6 +1,6 @@
 package unity_catalog
 
-import classes.SparkTestBase
+import classes.UnityCatalogTestBase
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Order
@@ -8,7 +8,7 @@ import org.junit.jupiter.api.TestMethodOrder
 import org.junit.jupiter.api.MethodOrderer
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation::class)
-class UnityCatalogIntegrationTest : SparkTestBase() {
+class UnityCatalogIntegrationTest : UnityCatalogTestBase() {
 
     data class SalesRecord(
         val id: Int,
@@ -30,7 +30,7 @@ class UnityCatalogIntegrationTest : SparkTestBase() {
             println("--- Setting up Unity Catalog test catalog and schema ---")
             
             // Get the Unity Catalog port from the running container
-            val ucPort = getUnityCatalogPort()
+            val ucPort = UnityCatalogTestBase.getUnityCatalogPort()
             val baseUrl = "http://localhost:$ucPort"
             
             // Create test catalog and schema via REST API
@@ -62,7 +62,7 @@ class UnityCatalogIntegrationTest : SparkTestBase() {
     fun `should verify Unity Catalog is accessible via REST API`() {
         ensureCatalogSetup()
         
-        val ucPort = getUnityCatalogPort()
+        val ucPort = UnityCatalogTestBase.getUnityCatalogPort()
         val baseUrl = "http://localhost:$ucPort"
         
         // List catalogs via REST API
@@ -80,7 +80,7 @@ class UnityCatalogIntegrationTest : SparkTestBase() {
     fun `should verify test schema exists in Unity Catalog via REST API`() {
         ensureCatalogSetup()
         
-        val ucPort = getUnityCatalogPort()
+        val ucPort = UnityCatalogTestBase.getUnityCatalogPort()
         val baseUrl = "http://localhost:$ucPort"
         
         // List schemas in test_catalog via REST API
@@ -97,7 +97,7 @@ class UnityCatalogIntegrationTest : SparkTestBase() {
     fun `should create table in Unity Catalog via REST API`() {
         ensureCatalogSetup()
         
-        val ucPort = getUnityCatalogPort()
+        val ucPort = UnityCatalogTestBase.getUnityCatalogPort()
         val baseUrl = "http://localhost:$ucPort"
         
         // Create table via REST API
@@ -131,7 +131,7 @@ class UnityCatalogIntegrationTest : SparkTestBase() {
     fun `should list tables in Unity Catalog via REST API`() {
         ensureCatalogSetup()
         
-        val ucPort = getUnityCatalogPort()
+        val ucPort = UnityCatalogTestBase.getUnityCatalogPort()
         val baseUrl = "http://localhost:$ucPort"
         
         // Ensure table exists from previous test
@@ -147,7 +147,7 @@ class UnityCatalogIntegrationTest : SparkTestBase() {
     fun `should get table metadata from Unity Catalog via REST API`() {
         ensureCatalogSetup()
         
-        val ucPort = getUnityCatalogPort()
+        val ucPort = UnityCatalogTestBase.getUnityCatalogPort()
         val baseUrl = "http://localhost:$ucPort"
         
         // Get table info
