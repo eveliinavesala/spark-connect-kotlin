@@ -7,8 +7,8 @@ import org.apache.spark.sql.functions
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
-import pragmatic.toDataFrame
-import pragmatic.toKotlinList
+import spark.kotlin.reflect.toDataFrame
+import spark.kotlin.reflect.toKotlinList
 
 class DataIntegrityTest : SparkTestBase() {
 
@@ -42,7 +42,7 @@ class DataIntegrityTest : SparkTestBase() {
     // --- 2. Null Safety Tests ---
 
     @Test
-    fun `pragmatic approach correctly handles null values`() {
+    fun `reflection engine correctly handles null values`() {
         val dataWithNulls = listOf(
             ItemWithNullable(1, "A valid description"),
             ItemWithNullable(2, null)
@@ -57,7 +57,7 @@ class DataIntegrityTest : SparkTestBase() {
     }
 
     @Test
-    fun `pragmatic approach fails to create non-nullable class with null data`() {
+    fun `toKotlinList throws when non-nullable field receives null`() {
         val dataWithNulls = listOf(
             ItemWithNullable(1, "A valid description"),
             ItemWithNullable(2, null)
