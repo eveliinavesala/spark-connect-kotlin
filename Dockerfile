@@ -1,5 +1,5 @@
-# Use a base image with Java 17, which is required for Spark 4.0
-FROM eclipse-temurin:17-jdk
+# Use a base image with Java 21, which is supported by Spark 4.0
+FROM eclipse-temurin:21-jdk
 
 # Set environment variables for Spark
 ENV SPARK_HOME=/opt/spark

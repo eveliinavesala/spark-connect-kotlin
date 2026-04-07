@@ -3,18 +3,10 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
     id("org.jetbrains.kotlin.jvm") version "1.9.24"
-    application
     id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
 version = "1.0"
-
-application {
-    mainClass.set("app.kotlin_spark.MainKt")
-    applicationDefaultJvmArgs = listOf(
-        "--add-opens=java.base/java.nio=ALL-UNNAMED"
-    )
-}
 
 repositories {
     mavenCentral()
@@ -49,15 +41,45 @@ tasks.processResources {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
-// Standard "fat jar" for deployment (main sources only)
-tasks.shadowJar {
-    archiveClassifier.set("fat")
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    dependencies {
-        exclude(dependency("org.apache.spark:.*"))
-        exclude(dependency("org.scala-lang:.*"))
+// ----------------------------------------------------------------------------
+// Demo source sets
+//
+// "demo"     — exploration / thesis illustration code (app/, classes/, collections/)
+//              Depends on main library output + implementation runtime deps.
+//              Not included in any library artifact.
+//
+// "demoTest" — tests for demo code (Idiomatic*Test, SparkETLTest, etc.)
+//              Depends on demo output + test output (for SparkTestBase) + test runtime deps.
+//              Run with: ./gradlew demoTest
+//              NOT included in ./gradlew test (library tests only).
+// ----------------------------------------------------------------------------
+sourceSets {
+    create("demo") {
+        kotlin.srcDir("src/demo/kotlin")
+        compileClasspath += sourceSets.main.get().output + configurations.runtimeClasspath.get()
+        runtimeClasspath += output + compileClasspath
     }
-    mergeServiceFiles()
+    create("demoTest") {
+        kotlin.srcDir("src/demo/test/kotlin")
+        compileClasspath += sourceSets.main.get().output + sourceSets["demo"].output + sourceSets.test.get().output + configurations.testRuntimeClasspath.get()
+        runtimeClasspath += output + compileClasspath
+    }
+}
+
+tasks.register<Test>("demoTest") {
+    description = "Runs demo/exploration tests separately from library tests."
+    group = "verification"
+    testClassesDirs = sourceSets["demoTest"].output.classesDirs
+    classpath = sourceSets["demoTest"].runtimeClasspath
+    useJUnitPlatform()
+    dependsOn(testFatJar)
+    System.getenv("DOCKER_HOST")?.let {
+        environment("DOCKER_HOST", it)
+    }
+    jvmArgs(
+        "--add-opens=java.base/java.nio=ALL-UNNAMED",
+        "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
+    )
 }
 
 // Optimized "test fat jar" - includes test classes but excludes provided dependencies
@@ -108,5 +130,5 @@ tasks.test {
 }
 
 kotlin {
-    jvmToolchain(17)
+    jvmToolchain(21)
 }
