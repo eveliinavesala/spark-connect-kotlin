@@ -2,8 +2,8 @@ import org.gradle.api.file.DuplicatesStrategy
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "1.9.24"
-    id("com.github.johnrengelman.shadow") version "8.1.1"
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.shadow)
 }
 
 version = "1.0"
@@ -14,27 +14,27 @@ repositories {
 
 dependencies {
     constraints {
-        implementation("org.apache.commons:commons-lang3:3.18.0") {
+        implementation(libs.commons.lang3) {
             because("Address security vulnerability in older versions of commons-lang3")
         }
-        testImplementation("org.apache.commons:commons-compress:1.26.0") {
+        testImplementation(libs.commons.compress) {
             because("Address security vulnerabilities CVE-2024-25710 and CVE-2024-26308")
         }
     }
 
-    implementation("org.apache.spark:spark-connect-client-jvm_2.13:4.0.0") {
+    implementation(libs.spark.connect.client) {
         exclude(group = "org.slf4j", module = "jul-to-slf4j")
     }
-    implementation(kotlin("reflect"))
-    implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.0")
+    implementation(libs.kotlin.reflect)
+    implementation(libs.kotlinx.datetime)
 
-    testImplementation(kotlin("test"))
-    testImplementation("org.testcontainers:testcontainers:1.21.4")
-    testImplementation("org.testcontainers:junit-jupiter:1.21.4")
-    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.2")
-    
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.testcontainers.core)
+    testImplementation(libs.testcontainers.junit.jupiter)
+    testRuntimeOnly(libs.junit.jupiter.engine)
+
     // Delta Lake for Unity Catalog tests
-    testImplementation("io.delta:delta-spark_2.13:3.2.0")
+    testImplementation(libs.delta.lake)
 }
 
 tasks.processResources {
@@ -86,14 +86,13 @@ tasks.register<Test>("demoTest") {
 val testFatJar = tasks.register<ShadowJar>("testFatJar") {
     archiveClassifier.set("test-fat")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    
+
     from(sourceSets.main.get().output)
     from(sourceSets.test.get().output)
-    
+
     configurations = listOf(project.configurations.testRuntimeClasspath.get())
-    
+
     dependencies {
-        // Exclude dependencies already provided by the Spark server
         exclude(dependency("org.apache.spark:.*"))
         exclude(dependency("org.scala-lang:.*"))
         exclude(dependency("org.apache.arrow:.*"))
@@ -103,8 +102,6 @@ val testFatJar = tasks.register<ShadowJar>("testFatJar") {
         exclude(dependency("org.slf4j:.*"))
         exclude(dependency("log4j:.*"))
         exclude(dependency("org.apache.logging.log4j:.*"))
-        
-        // Exclude test infrastructure not needed on the server
         exclude(dependency("org.testcontainers:.*"))
         exclude(dependency("org.junit.jupiter:.*"))
         exclude(dependency("org.junit.platform:.*"))
@@ -114,15 +111,11 @@ val testFatJar = tasks.register<ShadowJar>("testFatJar") {
 }
 
 tasks.test {
-    // Ensure the test fat jar is built before tests are run
     dependsOn(testFatJar)
     useJUnitPlatform()
-    
-    // Pass DOCKER_HOST to the test process if it exists
     System.getenv("DOCKER_HOST")?.let {
         environment("DOCKER_HOST", it)
     }
-    
     jvmArgs(
         "--add-opens=java.base/java.nio=ALL-UNNAMED",
         "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
