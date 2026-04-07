@@ -40,6 +40,13 @@ refresh:
 
 # --- Unity Catalog Commands ---
 
+# Generate docker/unity-catalog/hibernate.properties from template + .env variables
+generate-config:
+	@set -a && . ./.env && set +a && \
+	envsubst < docker/unity-catalog/hibernate.properties.template \
+	          > docker/unity-catalog/hibernate.properties
+	@echo "Generated docker/unity-catalog/hibernate.properties"
+
 # Build all Unity Catalog images
 uc-build:
 	docker compose -f $(COMPOSE_FILE) build
@@ -81,7 +88,7 @@ uc-restart:
 	docker compose -f $(COMPOSE_FILE) restart
 
 # Build and start Unity Catalog (full workflow)
-uc-start: uc-build uc-up
+uc-start: generate-config uc-build uc-up
 	@echo "Waiting for services to be healthy..."
 	sleep 10
 	$(MAKE) uc-status
@@ -105,6 +112,7 @@ uc-stacktrace:
 # --- Utility Commands ---
 
 .PHONY: build run stop clean app all rebuild refresh test stacktrace \
+        generate-config \
         uc-build uc-up uc-down uc-clean uc-logs uc-logs-unity uc-logs-spark uc-logs-postgres \
         uc-status uc-restart uc-start uc-test uc-stacktrace
 

@@ -1,0 +1,4 @@
+# Unity Catalog is distributed as a Docker image only — no standalone JAR release.
+# This file is kept as a placeholder. The official image is used directly in docker-compose.yml.
+# Config is generated from hibernate.properties.template via: make generate-config
+FROM unitycatalog/unitycatalog:latest

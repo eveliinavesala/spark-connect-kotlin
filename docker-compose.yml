@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  unity:
+    image: unitycatalog/unitycatalog:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./docker/unity-catalog/hibernate.properties:/home/unitycatalog/etc/conf/hibernate.properties:ro
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8080 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  spark:
+    build:
+      context: .
+      dockerfile: docker/spark/Dockerfile.spark-unity
+    depends_on:
+      unity:
+        condition: service_healthy
+    ports:
+      - "15002:15002"
+      - "4040:4040"
+    volumes:
+      - ./src/test/resources/data:/data
+
+volumes:
+  pgdata:
