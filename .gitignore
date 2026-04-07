@@ -49,3 +49,15 @@ bin/
 .env
 /.env
 
+### Performance Test Data ###
+test-results/performance/*.csv
+
+### Generated config (produced by make generate-config from .env + template)
+docker/unity-catalog/hibernate.properties
+
+### Docs
+/devdocs/*
+devdocs/*
+.idea/
+**/**/*.md
+
