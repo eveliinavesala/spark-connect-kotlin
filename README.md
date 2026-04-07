@@ -6,7 +6,7 @@ This project demonstrates a Kotlin application connecting to a Spark 4.0 cluster
 
 *   [Docker](https://www.docker.com/get-started) must be installed and running.
 *   Docker Compose (included with Docker Desktop).
-*   A Java 17 JDK.
+*   A Java 21 JDK.
 *   An IDE that supports Gradle projects (e.g., IntelliJ IDEA).
 
 ## Quick Start
@@ -35,7 +35,7 @@ make uc-down
 make uc-clean
 ```
 
-### Option 2: Simple Spark Server (Legacy)
+### Option 2: Simple Spark Server
 
 For basic Spark Connect without Unity Catalog:
 
@@ -55,7 +55,7 @@ make test
 
 This project includes a production-ready Unity Catalog setup with PostgreSQL backend for persistent metadata storage. Integration uses Unity Catalog's **REST API** for catalog operations.
 
-> **Note:** This implementation uses the Unity Catalog REST API instead of the Spark connector due to ANTLR dependency conflicts between Delta Lake 3.2.0 and Spark 4.0.0. See [docs/UNITY_CATALOG_SETUP.md](docs/UNITY_CATALOG_SETUP.md) for details.
+> **Note:** This implementation uses the Unity Catalog REST API instead of the Spark connector due to ANTLR dependency conflicts between Delta Lake 3.2.0 and Spark 4.0.0. See [docs/UNITY_CATALOG_SETUP.md](devdocs/UNITY_CATALOG_SETUP.md) for details.
 
 ### Architecture
 
