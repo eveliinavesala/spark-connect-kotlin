@@ -61,7 +61,11 @@ internal fun inferSparkType(descriptor: SerialDescriptor, isNullable: Boolean): 
         PrimitiveKind.LONG -> DataTypes.LongType
         PrimitiveKind.FLOAT -> DataTypes.FloatType
         PrimitiveKind.DOUBLE -> DataTypes.DoubleType
-        PrimitiveKind.STRING -> DataTypes.StringType
+        PrimitiveKind.STRING -> when (descriptor.serialName) {
+            "kotlinx.datetime.LocalDate" -> DataTypes.DateType
+            "kotlinx.datetime.Instant" -> DataTypes.TimestampType
+            else -> DataTypes.StringType
+        }
         PrimitiveKind.CHAR -> DataTypes.StringType
 
         // Enum

@@ -205,7 +205,7 @@ class SparkRowDecoderTest {
 
         // Create a row for a Dog instance with discriminator
         val row = GenericRowWithSchema(
-            arrayOf<Any?>("encoder.kotlin.Dog", "Buddy", "Golden Retriever"),
+            arrayOf<Any?>("spark.kotlin.serialization.Dog", "Buddy", "Golden Retriever"),
             schema
         )
 

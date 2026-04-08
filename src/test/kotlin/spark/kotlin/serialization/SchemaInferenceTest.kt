@@ -225,14 +225,7 @@ class SchemaInferenceTest {
         assertEquals(3, schema.fields().size)
         assertEquals(DataTypes.StringType, schema.fields()[0].dataType()) // title
 
-        // TODO: DateTime type mapping needs to be fixed
-        // Currently LocalDate and Instant are serialized as strings by kotlinx.serialization
-        // For now, accept StringType as the current behavior
-        // assertEquals(DataTypes.DateType, schema.fields()[1].dataType())   // LocalDate -> DateType
-        // assertEquals(DataTypes.TimestampType, schema.fields()[2].dataType()) // Instant -> TimestampType
-
-        // Verify they are at least String types for now
-        assertEquals(DataTypes.StringType, schema.fields()[1].dataType())
-        assertEquals(DataTypes.StringType, schema.fields()[2].dataType())
+        assertEquals(DataTypes.DateType, schema.fields()[1].dataType())      // LocalDate -> DateType
+        assertEquals(DataTypes.TimestampType, schema.fields()[2].dataType()) // Instant -> TimestampType
     }
 }

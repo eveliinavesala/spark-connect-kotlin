@@ -197,7 +197,7 @@ class SparkRowEncoderTest {
         val row = sparkSerializer.serialize(dog)
 
         // Sealed classes should have a "_type" discriminator field
-        assertEquals("encoder.kotlin.Dog", row.getString(0))
+        assertEquals("spark.kotlin.serialization.Dog", row.getString(0))
         assertEquals("Buddy", row.getString(1))
         assertEquals("Golden Retriever", row.getString(2))
     }
