@@ -1,4 +1,4 @@
-package serialization.decoders
+package spark.kotlin.serialization.decoders
 
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerializationException

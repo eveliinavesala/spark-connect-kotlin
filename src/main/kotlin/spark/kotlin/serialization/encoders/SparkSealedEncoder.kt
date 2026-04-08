@@ -1,4 +1,4 @@
-package serialization.encoders
+package spark.kotlin.serialization.encoders
 
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.descriptors.SerialDescriptor

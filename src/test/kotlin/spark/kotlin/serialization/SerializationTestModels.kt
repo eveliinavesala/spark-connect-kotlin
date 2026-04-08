@@ -1,4 +1,4 @@
-package serialization
+package spark.kotlin.serialization
 
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate

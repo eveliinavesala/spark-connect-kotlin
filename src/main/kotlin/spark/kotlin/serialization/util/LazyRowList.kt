@@ -1,8 +1,8 @@
-package serialization.util
+package spark.kotlin.serialization.util
 
 import org.apache.spark.sql.Row
 import java.util.AbstractList
-import serialization.SparkSerializer
+import spark.kotlin.serialization.SparkSerializer
 
 /**
  * Lazy list implementation for efficient DataFrame creation.

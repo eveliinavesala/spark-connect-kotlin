@@ -1,4 +1,4 @@
-package serialization.decoders
+package spark.kotlin.serialization.decoders
 
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.toKotlinInstant

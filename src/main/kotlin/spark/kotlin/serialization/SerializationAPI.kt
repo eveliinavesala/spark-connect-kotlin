@@ -1,6 +1,6 @@
-package serialization
+package spark.kotlin.serialization
 
-import serialization.util.LazySerializableRowList
+import spark.kotlin.serialization.util.LazySerializableRowList
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.serializer
 import org.apache.spark.sql.Dataset

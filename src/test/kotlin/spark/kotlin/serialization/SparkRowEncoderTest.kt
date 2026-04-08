@@ -1,4 +1,4 @@
-package serialization
+package spark.kotlin.serialization
 
 import kotlinx.serialization.serializer
 import org.apache.spark.sql.Row

@@ -1,4 +1,4 @@
-package serialization
+package spark.kotlin.serialization
 
 import classes.SparkTestBase
 import org.junit.jupiter.api.Assertions.*

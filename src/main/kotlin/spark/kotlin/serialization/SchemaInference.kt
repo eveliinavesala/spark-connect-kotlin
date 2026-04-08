@@ -1,4 +1,4 @@
-package serialization
+package spark.kotlin.serialization
 
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.descriptors.*
