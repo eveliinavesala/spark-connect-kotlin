@@ -3,8 +3,8 @@ package serialization
 import classes.SparkTestBase
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
-import pragmatic.toDataFrame
-import pragmatic.toKotlinList
+import spark.kotlin.reflect.toDataFrame
+import spark.kotlin.reflect.toKotlinList
 
 /**
  * Comparison tests between kotlinx.serialization-based and reflection-based implementations.
