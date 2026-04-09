@@ -203,9 +203,10 @@ class SparkRowDecoderTest {
         val serializer = serializer<Animal>()
         val schema = inferSparkSchema(serializer.descriptor)
 
-        // Create a row for a Dog instance with discriminator
+        // Flat union schema: [_type, name, canFly, color, breed]
+        // Dog only sets name and breed; canFly and color are null
         val row = GenericRowWithSchema(
-            arrayOf<Any?>("spark.kotlin.serialization.Dog", "Buddy", "Golden Retriever"),
+            arrayOf<Any?>("spark.kotlin.serialization.Dog", "Buddy", null, null, "Golden Retriever"),
             schema
         )
 
@@ -265,6 +266,74 @@ class SparkRowDecoderTest {
         // Decode
         val sparkDeserializer = SparkDeserializer(serializer)
         val decoded = sparkDeserializer.deserialize(row)
+
+        assertEquals(original, decoded)
+    }
+
+    @Test
+    fun `test decode sealed subtype with boolean field`() {
+        // Exercises SparkSealedSubtypeDecoder for a Boolean column — the type the original decoder never read
+        val serializer = serializer<Animal>()
+        val schema = inferSparkSchema(serializer.descriptor)
+
+        // Flat union schema: [_type(0), name(1), canFly(2), color(3), breed(4)]
+        // Bird sets name and canFly; color and breed are null
+        val row = GenericRowWithSchema(
+            arrayOf<Any?>("spark.kotlin.serialization.Bird", "Tweety", true, null, null),
+            schema
+        )
+
+        val result = SparkDeserializer(serializer).deserialize(row)
+
+        assertTrue(result is Bird)
+        assertEquals("Tweety", result.name)
+        assertEquals(true, (result as Bird).canFly)
+    }
+
+    @Test
+    fun `test decode Zoo with list of sealed animals`() {
+        // Exercises SparkListDecoder.beginStructure(SEALED) — the new code path added in this session
+        val animalSerializer = serializer<Animal>()
+        val animalSchema = inferSparkSchema(animalSerializer.descriptor)
+
+        // Flat union schema: [_type(0), name(1), canFly(2), color(3), breed(4)]
+        val dogRow  = GenericRowWithSchema(arrayOf<Any?>("spark.kotlin.serialization.Dog",  "Buddy",   null, null,    "Labrador"), animalSchema)
+        val catRow  = GenericRowWithSchema(arrayOf<Any?>("spark.kotlin.serialization.Cat",  "Whiskers", null, "Black", null),       animalSchema)
+        val birdRow = GenericRowWithSchema(arrayOf<Any?>("spark.kotlin.serialization.Bird", "Tweety",  true, null,    null),        animalSchema)
+
+        val scalaAnimals = CollectionConverters.asScala(listOf<Any?>(dogRow, catRow, birdRow)).toSeq()
+
+        val zooSerializer = serializer<Zoo>()
+        val zooSchema = inferSparkSchema(zooSerializer.descriptor)
+        val zooRow = GenericRowWithSchema(arrayOf<Any?>("Central Park", scalaAnimals), zooSchema)
+
+        val result = SparkDeserializer(zooSerializer).deserialize(zooRow)
+
+        assertEquals("Central Park", result.location)
+        assertEquals(3, result.animals.size)
+        assertTrue(result.animals[0] is Dog);    assertEquals("Buddy",    result.animals[0].name); assertEquals("Labrador", (result.animals[0] as Dog).breed)
+        assertTrue(result.animals[1] is Cat);    assertEquals("Whiskers", result.animals[1].name); assertEquals("Black",    (result.animals[1] as Cat).color)
+        assertTrue(result.animals[2] is Bird);   assertEquals("Tweety",   result.animals[2].name); assertEquals(true,       (result.animals[2] as Bird).canFly)
+    }
+
+    @Test
+    fun `test round-trip ComplexData with sealed list containing integer fields`() {
+        // ComplexData has List<DataItem> where DataItem subtypes have id: Int — the field type
+        // the original encoder silently dropped (no encodeInt override in SparkSealedSubtypeEncoder)
+        val original = ComplexData(
+            id = "report-1",
+            metadata = mapOf("source" to "unit-test", "version" to "2"),
+            items = listOf(
+                TextItem(1, "hello world"),
+                NumberItem(2, 3.14)
+            )
+        )
+
+        val serializer = serializer<ComplexData>()
+        val schema = inferSparkSchema(serializer.descriptor)
+
+        val encoded = SparkSerializer(serializer, schema).serialize(original)
+        val decoded = SparkDeserializer(serializer).deserialize(encoded)
 
         assertEquals(original, decoded)
     }

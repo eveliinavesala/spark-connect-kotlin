@@ -196,10 +196,12 @@ class SparkRowEncoderTest {
         val sparkSerializer = SparkSerializer(serializer, schema)
         val row = sparkSerializer.serialize(dog)
 
-        // Sealed classes should have a "_type" discriminator field
+        // Flat union schema: [_type, name, canFly, color, breed] (subtypes in alphabetical order: Bird, Cat, Dog)
         assertEquals("spark.kotlin.serialization.Dog", row.getString(0))
-        assertEquals("Buddy", row.getString(1))
-        assertEquals("Golden Retriever", row.getString(2))
+        assertEquals("Buddy", row.getString(1))                 // name at index 1
+        assertNull(row.get(2))                                  // canFly - null for Dog
+        assertNull(row.get(3))                                  // color - null for Dog
+        assertEquals("Golden Retriever", row.getString(4))      // breed at index 4
     }
 
     @Test
@@ -240,6 +242,39 @@ class SparkRowEncoderTest {
         val aliceAddress = alice.getStruct(2)
         assertEquals("123 Main", aliceAddress.getString(0))
         assertEquals("NYC", aliceAddress.getString(1))
+    }
+
+    @Test
+    fun `test encode Zoo with list of sealed animals`() {
+        // Exercises SparkListEncoder.beginStructure(SEALED) and encodeBoolean in sealed subtype
+        val zoo = Zoo("Central Park", listOf(
+            Dog("Buddy", "Labrador"),
+            Bird("Tweety", true)
+        ))
+        val serializer = serializer<Zoo>()
+        val schema = inferSparkSchema(serializer.descriptor)
+
+        val row = SparkSerializer(serializer, schema).serialize(zoo)
+
+        assertEquals("Central Park", row.getString(0))
+
+        val animals = row.getList<Row>(1)
+        assertEquals(2, animals.size)
+
+        // Flat union schema: [_type(0), name(1), canFly(2), color(3), breed(4)]
+        val dog = animals[0]
+        assertEquals("spark.kotlin.serialization.Dog", dog.getString(0))
+        assertEquals("Buddy", dog.getString(1))
+        assertNull(dog.get(2))                     // canFly — null for Dog
+        assertNull(dog.get(3))                     // color  — null for Dog
+        assertEquals("Labrador", dog.getString(4))
+
+        val bird = animals[1]
+        assertEquals("spark.kotlin.serialization.Bird", bird.getString(0))
+        assertEquals("Tweety", bird.getString(1))
+        assertEquals(true, bird.getBoolean(2))     // canFly — Boolean field, was dropped in the original encoder
+        assertNull(bird.get(3))                    // color  — null for Bird
+        assertNull(bird.get(4))                    // breed  — null for Bird
     }
 
     @Test
