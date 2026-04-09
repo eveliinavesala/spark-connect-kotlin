@@ -2,10 +2,13 @@ package spark.kotlin.serialization.decoders
 
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.descriptors.PolymorphicKind
 import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.StructureKind
 import kotlinx.serialization.encoding.AbstractDecoder
 import kotlinx.serialization.encoding.CompositeDecoder
 import kotlinx.serialization.modules.SerializersModule
+import org.apache.spark.sql.Row
 
 /**
  * Decoders for collection types (List and Map).
@@ -61,6 +64,14 @@ internal class SparkListDecoder(
         return (0 until enumDescriptor.elementsCount).find {
             enumDescriptor.getElementName(it) == enumName
         } ?: throw SerializationException("Unknown enum value: $enumName")
+    }
+
+    override fun beginStructure(descriptor: SerialDescriptor): CompositeDecoder {
+        return when (descriptor.kind) {
+            StructureKind.CLASS -> SparkRowDecoder(getValue() as Row, serializersModule)
+            PolymorphicKind.SEALED -> SparkSealedDecoder(getValue() as Row, serializersModule)
+            else -> this
+        }
     }
 }
 
