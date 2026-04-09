@@ -23,23 +23,36 @@ import org.apache.spark.sql.types.*
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal fun inferSparkSchema(descriptor: SerialDescriptor): StructType {
-    val fields = mutableListOf<StructField>()
-
-    // Handle sealed classes with discriminator
+    // Sealed classes use a flat union schema: _type discriminator + all unique subtype fields (nullable)
     if (descriptor.kind == PolymorphicKind.SEALED) {
+        val fields = mutableListOf<StructField>()
         fields.add(DataTypes.createStructField("_type", DataTypes.StringType, false))
+        val seen = linkedMapOf<String, DataType>()
+        // element[1] is the CONTEXTUAL "value" container whose elements are the subtypes
+        val valueDescriptor = descriptor.getElementDescriptor(1)
+        for (i in 0 until valueDescriptor.elementsCount) {
+            val subtypeClassDescriptor = valueDescriptor.getElementDescriptor(i)
+            for (j in 0 until subtypeClassDescriptor.elementsCount) {
+                val name = subtypeClassDescriptor.getElementName(j)
+                if (name !in seen) {
+                    seen[name] = inferSparkType(subtypeClassDescriptor.getElementDescriptor(j), false)
+                }
+            }
+        }
+        seen.forEach { (name, type) ->
+            fields.add(DataTypes.createStructField(name, type, true))
+        }
+        return DataTypes.createStructType(fields.toTypedArray())
     }
 
+    val fields = mutableListOf<StructField>()
     for (i in 0 until descriptor.elementsCount) {
         val fieldName = descriptor.getElementName(i)
         val fieldDescriptor = descriptor.getElementDescriptor(i)
-        // Check if the field is nullable by examining if the descriptor is nullable
         val isNullable = fieldDescriptor.isNullable
-
         val dataType = inferSparkType(fieldDescriptor, isNullable)
         fields.add(DataTypes.createStructField(fieldName, dataType, isNullable))
     }
-
     return DataTypes.createStructType(fields.toTypedArray())
 }
 
