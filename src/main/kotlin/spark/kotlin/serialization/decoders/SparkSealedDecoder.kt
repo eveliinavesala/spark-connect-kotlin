@@ -1,7 +1,10 @@
 package spark.kotlin.serialization.decoders
 
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.toKotlinInstant
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.AbstractDecoder
 import kotlinx.serialization.encoding.CompositeDecoder
@@ -11,8 +14,9 @@ import org.apache.spark.sql.Row
 /**
  * Decoder for sealed classes (polymorphic types).
  *
- * Reads the _type discriminator field to determine the actual
- * subclass type, then delegates to appropriate decoder.
+ * Reads the _type discriminator from column 0, then delegates to
+ * [SparkSealedSubtypeDecoder] to read each subtype field by name
+ * from the flat union schema row.
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkSealedDecoder(
@@ -30,19 +34,83 @@ internal class SparkSealedDecoder(
     }
 
     override fun decodeString(): String {
-        // First element (index 0) is the type discriminator
-        return row.getString(elementIndex - 1)
+        // _type discriminator is always at column 0
+        return row.getString(0)
     }
 
-    override fun <T> decodeSerializableElement(
-        descriptor: SerialDescriptor,
-        index: Int,
-        deserializer: DeserializationStrategy<T>,
-        previousValue: T?
-    ): T {
-        // After reading the discriminator at index 0, we decode the actual value at index 1
-        // The actual value uses the entire row (including the discriminator field)
-        val valueDecoder = SparkRowDecoder(row, serializersModule)
-        return valueDecoder.decodeSerializableValue(deserializer)
+    override fun beginStructure(descriptor: SerialDescriptor): CompositeDecoder {
+        // Called by the subtype serializer; descriptor is the subtype's descriptor
+        return SparkSealedSubtypeDecoder(row, descriptor, serializersModule)
     }
+}
+
+/**
+ * Decoder for a specific sealed subtype within a flat union Row.
+ *
+ * Maps each field of the subtype to its column in the flat Row by name,
+ * since the flat schema contains all subtypes' fields and only the relevant
+ * fields are non-null for a given row.
+ */
+@OptIn(ExperimentalSerializationApi::class)
+internal class SparkSealedSubtypeDecoder(
+    private val row: Row,
+    private val subtypeDescriptor: SerialDescriptor,
+    override val serializersModule: SerializersModule
+) : AbstractDecoder() {
+
+    private var currentElementIndex = 0
+
+    // Map subtype field index → flat row column index (by field name lookup)
+    private val fieldColumnIndices: IntArray = IntArray(subtypeDescriptor.elementsCount) { i ->
+        row.fieldIndex(subtypeDescriptor.getElementName(i))
+    }
+
+    override fun decodeElementIndex(descriptor: SerialDescriptor): Int {
+        return if (currentElementIndex < descriptor.elementsCount) {
+            currentElementIndex++
+        } else {
+            CompositeDecoder.DECODE_DONE
+        }
+    }
+
+    private fun col() = fieldColumnIndices[currentElementIndex - 1]
+
+    override fun decodeBoolean(): Boolean = row.getBoolean(col())
+    override fun decodeByte(): Byte = row.getByte(col())
+    override fun decodeShort(): Short = row.getShort(col())
+    override fun decodeInt(): Int = row.getInt(col())
+    override fun decodeLong(): Long = row.getLong(col())
+    override fun decodeFloat(): Float = row.getFloat(col())
+    override fun decodeDouble(): Double = row.getDouble(col())
+    override fun decodeChar(): Char = row.getString(col()).first()
+    override fun decodeString(): String = row.getString(col())
+
+    override fun decodeNotNullMark(): Boolean = !row.isNullAt(col())
+    override fun decodeNull(): Nothing? = null
+
+    override fun decodeEnum(enumDescriptor: SerialDescriptor): Int {
+        val enumName = row.getString(col())
+        return (0 until enumDescriptor.elementsCount).find {
+            enumDescriptor.getElementName(it) == enumName
+        } ?: throw SerializationException("Unknown enum value: $enumName")
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    override fun <T> decodeSerializableValue(deserializer: DeserializationStrategy<T>): T {
+        return when (deserializer.descriptor.serialName) {
+            "kotlinx.datetime.LocalDate" -> {
+                val date = row.getDate(col())
+                LocalDate.parse(date.toString()) as T
+            }
+            "kotlinx.datetime.Instant" -> {
+                val timestamp = row.getTimestamp(col())
+                timestamp.toInstant().toKotlinInstant() as T
+            }
+            else -> super.decodeSerializableValue(deserializer)
+        }
+    }
+
+    // Nested structures within sealed subtype fields are not yet supported
+    override fun beginStructure(descriptor: SerialDescriptor): CompositeDecoder = this
+    override fun endStructure(descriptor: SerialDescriptor) {}
 }

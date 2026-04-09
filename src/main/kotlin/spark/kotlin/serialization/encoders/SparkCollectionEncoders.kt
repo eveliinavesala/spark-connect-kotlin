@@ -7,7 +7,11 @@ import kotlinx.datetime.toJavaLocalDate
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.PolymorphicKind
+import kotlinx.serialization.descriptors.StructureKind
+import spark.kotlin.serialization.inferSparkSchema
 import kotlinx.serialization.encoding.AbstractEncoder
+import kotlinx.serialization.encoding.CompositeEncoder
 import kotlinx.serialization.modules.SerializersModule
 import scala.jdk.javaapi.CollectionConverters
 import java.sql.Date
@@ -28,15 +32,15 @@ import scala.collection.immutable.Map
 /**
  * Encoder for List/Array types.
  * Collects elements and converts to Scala Seq for Spark.
+ *
+ * @param addToParent callback invoked with the finished ScalaSeq when encoding completes
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkListEncoder(
-    private val parent: AbstractEncoder
+    private val addToParent: (Any?) -> Unit,
+    override val serializersModule: SerializersModule
 ) : AbstractEncoder() {
     private val elements = mutableListOf<Any?>()
-
-    override val serializersModule: SerializersModule
-        get() = parent.serializersModule
 
     // Element encoding
     override fun encodeBoolean(value: Boolean) { elements.add(value) }
@@ -59,7 +63,7 @@ internal class SparkListEncoder(
         when (serializer.descriptor.serialName) {
             "kotlinx.datetime.LocalDate" -> {
                 val localDate = value as LocalDate
-                elements.add(Date.valueOf(localDate.toJavaLocalDate().toString()))
+                elements.add(Date.valueOf(localDate.toJavaLocalDate()))
             }
             "kotlinx.datetime.Instant" -> {
                 val instant = value as Instant
@@ -69,12 +73,21 @@ internal class SparkListEncoder(
         }
     }
 
-    override fun endStructure(descriptor: SerialDescriptor) {
-        val scalaSeq = CollectionConverters.asScala(elements).toSeq()
-        when (parent) {
-            is SparkRowEncoder    -> parent.addValue(scalaSeq)
-            is SparkStructEncoder -> parent.addValue(scalaSeq)
+    override fun beginStructure(descriptor: SerialDescriptor): CompositeEncoder {
+        return when (descriptor.kind) {
+            StructureKind.LIST -> SparkListEncoder({ elements.add(it) }, serializersModule)
+            StructureKind.MAP  -> SparkMapEncoder({ elements.add(it) }, serializersModule)
+            StructureKind.CLASS -> when (descriptor.serialName) {
+                "kotlinx.datetime.LocalDate", "kotlinx.datetime.Instant" -> this
+                else -> SparkStructEncoder({ elements.add(it) }, serializersModule)
+            }
+            PolymorphicKind.SEALED -> SparkSealedEncoder({ elements.add(it) }, serializersModule, inferSparkSchema(descriptor))
+            else -> this
         }
+    }
+
+    override fun endStructure(descriptor: SerialDescriptor) {
+        addToParent(CollectionConverters.asScala(elements).toSeq())
     }
 }
 
@@ -85,17 +98,17 @@ internal class SparkListEncoder(
 /**
  * Encoder for Map types.
  * Collects key-value pairs and converts to Scala immutable Map for Spark.
+ *
+ * @param addToParent callback invoked with the finished Scala Map when encoding completes
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkMapEncoder(
-    private val parent: AbstractEncoder
+    private val addToParent: (Any?) -> Unit,
+    override val serializersModule: SerializersModule
 ) : AbstractEncoder() {
     private val keys = mutableListOf<Any?>()
     private val values = mutableListOf<Any?>()
     private var isKey = true
-
-    override val serializersModule: SerializersModule
-        get() = parent.serializersModule
 
     // Element encoding - alternates between keys and values
     override fun encodeBoolean(value: Boolean) = addElement(value)
@@ -114,24 +127,24 @@ internal class SparkMapEncoder(
     }
 
     private fun addElement(value: Any?) {
-        if (isKey) {
-            keys.add(value)
-        } else {
-            values.add(value)
-        }
+        if (isKey) keys.add(value) else values.add(value)
         isKey = !isKey
+    }
+
+    override fun beginStructure(descriptor: SerialDescriptor): CompositeEncoder {
+        return when (descriptor.kind) {
+            StructureKind.LIST -> SparkListEncoder({ addElement(it) }, serializersModule)
+            StructureKind.MAP  -> SparkMapEncoder({ addElement(it) }, serializersModule)
+            StructureKind.CLASS -> when (descriptor.serialName) {
+                "kotlinx.datetime.LocalDate", "kotlinx.datetime.Instant" -> this
+                else -> SparkStructEncoder({ addElement(it) }, serializersModule)
+            }
+            else -> this
+        }
     }
 
     override fun endStructure(descriptor: SerialDescriptor) {
         val javaMap = keys.zip(values).toMap()
-        // Convert Java map to Scala immutable map
-        val scalaMap = Map.from(
-            CollectionConverters.asScala(javaMap)
-        )
-
-        when (parent) {
-            is SparkRowEncoder    -> parent.addValue(scalaMap)
-            is SparkStructEncoder -> parent.addValue(scalaMap)
-        }
+        addToParent(Map.from(CollectionConverters.asScala(javaMap)))
     }
 }

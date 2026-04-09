@@ -18,17 +18,17 @@ import org.apache.spark.sql.catalyst.expressions.GenericRow
 /**
  * Encoder for struct/object fields within a parent structure.
  *
- * Collects field values and passes them to the parent encoder
- * when structure encoding is complete.
+ * Collects field values and passes them as a [GenericRow] to the parent
+ * via [addToParent] when structure encoding is complete.
+ *
+ * @param addToParent callback invoked with the finished GenericRow when encoding completes
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkStructEncoder(
-    private val parent: SparkRowEncoder
+    private val addToParent: (Any?) -> Unit,
+    override val serializersModule: SerializersModule
 ) : AbstractEncoder() {
     private val fieldValues = mutableListOf<Any?>()
-
-    override val serializersModule: SerializersModule
-        get() = parent.serializersModule
 
     // Primitive encoding - add to field values
     override fun encodeBoolean(value: Boolean) { fieldValues.add(value) }
@@ -49,9 +49,13 @@ internal class SparkStructEncoder(
     // Nested structures
     override fun beginStructure(descriptor: SerialDescriptor): CompositeEncoder {
         return when (descriptor.kind) {
-            StructureKind.LIST -> SparkListEncoder(this)
-            StructureKind.MAP -> SparkMapEncoder(this)
-            else -> SparkNestedStructEncoder(this)
+            StructureKind.LIST -> SparkListEncoder({ fieldValues.add(it) }, serializersModule)
+            StructureKind.MAP  -> SparkMapEncoder({ fieldValues.add(it) }, serializersModule)
+            StructureKind.CLASS -> when (descriptor.serialName) {
+                "kotlinx.datetime.LocalDate", "kotlinx.datetime.Instant" -> this
+                else -> SparkStructEncoder({ fieldValues.add(it) }, serializersModule)
+            }
+            else -> this
         }
     }
 
@@ -60,7 +64,7 @@ internal class SparkStructEncoder(
         when (serializer.descriptor.serialName) {
             "kotlinx.datetime.LocalDate" -> {
                 val localDate = value as LocalDate
-                fieldValues.add(Date.valueOf(localDate.toJavaLocalDate().toString()))
+                fieldValues.add(Date.valueOf(localDate.toJavaLocalDate()))
             }
             "kotlinx.datetime.Instant" -> {
                 val instant = value as Instant
@@ -71,51 +75,6 @@ internal class SparkStructEncoder(
     }
 
     override fun endStructure(descriptor: SerialDescriptor) {
-        // Convert fieldValues to a GenericRow instead of adding the raw list
-        val row = GenericRow(fieldValues.toTypedArray())
-        parent.addValue(row)
-    }
-
-    /**
-     * Internal method to add a value to this struct.
-     * Used by nested encoders.
-     */
-    internal fun addValue(value: Any?) {
-        fieldValues.add(value)
-    }
-}
-
-/**
- * Encoder for deeply nested structures.
- * Similar to SparkStructEncoder but works with SparkStructEncoder as parent.
- */
-@OptIn(ExperimentalSerializationApi::class)
-internal class SparkNestedStructEncoder(
-    private val parent: SparkStructEncoder
-) : AbstractEncoder() {
-    private val fieldValues = mutableListOf<Any?>()
-
-    override val serializersModule: SerializersModule
-        get() = parent.serializersModule
-
-    override fun encodeBoolean(value: Boolean) { fieldValues.add(value) }
-    override fun encodeByte(value: Byte) { fieldValues.add(value) }
-    override fun encodeShort(value: Short) { fieldValues.add(value) }
-    override fun encodeInt(value: Int) { fieldValues.add(value) }
-    override fun encodeLong(value: Long) { fieldValues.add(value) }
-    override fun encodeFloat(value: Float) { fieldValues.add(value) }
-    override fun encodeDouble(value: Double) { fieldValues.add(value) }
-    override fun encodeChar(value: Char) { fieldValues.add(value.toString()) }
-    override fun encodeString(value: String) { fieldValues.add(value) }
-    override fun encodeNull() { fieldValues.add(null) }
-
-    override fun encodeEnum(enumDescriptor: SerialDescriptor, index: Int) {
-        fieldValues.add(enumDescriptor.getElementName(index))
-    }
-
-    override fun endStructure(descriptor: SerialDescriptor) {
-        // Convert fieldValues to a GenericRow instead of adding the raw list
-        val row = GenericRow(fieldValues.toTypedArray())
-        parent.addValue(row)
+        addToParent(GenericRow(fieldValues.toTypedArray()))
     }
 }

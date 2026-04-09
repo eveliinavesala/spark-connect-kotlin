@@ -102,8 +102,8 @@ internal class SparkRowEncoder(
     override fun beginStructure(descriptor: SerialDescriptor): CompositeEncoder {
         structureDepth++
         return when (descriptor.kind) {
-            StructureKind.LIST -> SparkListEncoder(this)
-            StructureKind.MAP -> SparkMapEncoder(this)
+            StructureKind.LIST -> SparkListEncoder({ addValue(it) }, serializersModule)
+            StructureKind.MAP -> SparkMapEncoder({ addValue(it) }, serializersModule)
             StructureKind.CLASS -> {
                 when (descriptor.serialName) {
                     "kotlinx.datetime.LocalDate" -> this
@@ -111,11 +111,15 @@ internal class SparkRowEncoder(
                     else -> {
                         // Only use SparkStructEncoder for nested structures
                         // Root level (structureDepth == 1) should encode directly
-                        if (structureDepth == 1) this else SparkStructEncoder(this)
+                        if (structureDepth == 1) this else SparkStructEncoder({ addValue(it) }, serializersModule)
                     }
                 }
             }
-            PolymorphicKind.SEALED -> SparkSealedEncoder(this)
+            PolymorphicKind.SEALED -> SparkSealedEncoder(
+                { row -> (row as Row).let { r -> (0 until r.size()).forEach { addValue(r.get(it)) } } },
+                serializersModule,
+                schema
+            )
             else -> this
         }
     }
@@ -129,7 +133,7 @@ internal class SparkRowEncoder(
         when (serializer.descriptor.serialName) {
             "kotlinx.datetime.LocalDate" -> {
                 val localDate = value as LocalDate
-                values.add(Date.valueOf(localDate.toJavaLocalDate().toString()))
+                values.add(Date.valueOf(localDate.toJavaLocalDate()))
                 currentIndex++
             }
             "kotlinx.datetime.Instant" -> {
