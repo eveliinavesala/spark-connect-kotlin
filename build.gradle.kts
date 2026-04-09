@@ -9,10 +9,6 @@ plugins {
 
 version = "1.0"
 
-repositories {
-    mavenCentral()
-}
-
 dependencies {
     constraints {
         implementation(libs.commons.lang3) {
