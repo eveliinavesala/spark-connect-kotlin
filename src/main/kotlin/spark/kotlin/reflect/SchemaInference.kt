@@ -12,6 +12,29 @@ import kotlin.reflect.jvm.jvmErasure
 // Nullability is stripped before lookup so Tree and Tree? are treated as the same type.
 private val schemaInProgress = ThreadLocal.withInitial<MutableSet<KType>> { mutableSetOf() }
 
+/**
+ * Derives a Spark [StructType] from a Kotlin [KType] using reflection.
+ *
+ * Supported type families:
+ * - Primitives and [String] → scalar Spark types
+ * - [kotlinx.datetime.LocalDate] / [kotlinx.datetime.Instant] → [org.apache.spark.sql.types.DateType] / TimestampType
+ * - Data classes → nested [StructType] (recursive)
+ * - Sealed class hierarchies → flat union schema: one [org.apache.spark.sql.types.StringType] `_type`
+ *   discriminator column followed by nullable columns for every field across all leaf subclasses
+ * - [Pair] / [Triple] → struct with fields `_1`, `_2` (and `_3`), matching Scala tuple convention
+ * - [Collection] / [Array] → [org.apache.spark.sql.types.ArrayType]
+ * - [Map] → [org.apache.spark.sql.types.MapType]
+ * - Value classes → unwrapped to the backing type's Spark equivalent
+ * - [org.apache.spark.sql.types.SQLUserDefinedType]-annotated classes → the registered UDT
+ *
+ * Recursive type detection is performed via a thread-local set of in-progress types. A type
+ * encountered twice in the same inference call results in [IllegalArgumentException].
+ *
+ * Results are **not** cached here; caching is handled by [ReflectionCache.getSchema].
+ *
+ * @throws IllegalArgumentException if a recursive type or unsupported type is encountered,
+ *   or if a sealed hierarchy contains subclasses with duplicate simple names.
+ */
 internal fun inferSchemaInternal(kType: KType): StructType {
     val normalizedType = kType.jvmErasure.createType(kType.arguments, nullable = false)
     val inProgress = schemaInProgress.get()
@@ -62,6 +85,18 @@ internal fun inferSchemaInternal(kType: KType): StructType {
     }
 }
 
+/**
+ * Maps a single [KType] to the corresponding Spark [DataType].
+ *
+ * For compound types (data classes, sealed hierarchies, [Pair], [Triple]) the result is
+ * a [org.apache.spark.sql.types.StructType] obtained via [ReflectionCache.getSchema] so that
+ * sub-schemas are also cached. Value classes are transparently unwrapped to their backing type.
+ * [Char] is stored as a single-character [org.apache.spark.sql.types.StringType].
+ * [java.math.BigDecimal] maps to `DECIMAL(38, 18)`.
+ *
+ * @throws IllegalArgumentException if [kType] has no known Spark equivalent and no
+ *   [org.apache.spark.sql.types.SQLUserDefinedType] annotation.
+ */
 internal fun kotlinTypeToSparkType(kType: KType): DataType {
     val classifier = kType.jvmErasure
     return when {

@@ -9,10 +9,28 @@ import kotlin.reflect.full.*
 import kotlin.reflect.jvm.isAccessible
 import kotlin.reflect.jvm.jvmErasure
 
+/**
+ * Converts a Kotlin object to a Spark [Row] using pre-built [FieldSerializer] extractors.
+ *
+ * An instance is bound to a specific [StructType] at construction time. Each field in the schema
+ * has a corresponding [FieldSerializer] that knows how to extract and convert the matching property.
+ *
+ * Special cases handled during field extraction:
+ * - `_type` field — filled with `obj::class.simpleName` for sealed union schemas
+ * - [Pair] / [Triple] — properties are mapped to `_1`, `_2`, `_3` by index rather than by name
+ * - Generic type arguments — preserved via a resolved [kotlin.reflect.KType] so that nested
+ *   generic classes (e.g. `Box<String>`) are not reduced to `Box<*>` by JVM erasure
+ * - Sealed union schema fields absent on the runtime subtype — resolved dynamically via
+ *   [kotlin.reflect.KClass.memberProperties] and return `null` when absent
+ *
+ * Instances are obtained through [ReflectionCache.getSerializer]; direct construction is via
+ * the [companion object][RowSerializer.Companion].
+ */
 internal class RowSerializer private constructor(
     private val schema: StructType,
     private val fieldSerializers: List<FieldSerializer>
 ) {
+    /** Extracts each field and returns a [GenericRowWithSchema] bound to [schema]. */
     fun serialize(obj: Any): Row {
         val values = fieldSerializers.map { it.extract(obj) }.toTypedArray()
         return GenericRowWithSchema(values, schema)

@@ -23,6 +23,27 @@ import kotlin.reflect.jvm.isAccessible
 import kotlin.reflect.jvm.jvmErasure
 import kotlin.reflect.typeOf
 
+/**
+ * Converts a Kotlin value to its Spark-compatible representation.
+ *
+ * Handles all types supported by [inferSchemaInternal]:
+ * - `null` → `null`
+ * - Value classes → unwrapped to the backing property value (recursively)
+ * - [kotlinx.datetime.LocalDate] / [java.time.LocalDate] → [java.sql.Date]
+ * - [kotlinx.datetime.Instant] / [java.time.Instant] → [java.sql.Timestamp]
+ * - [SQLUserDefinedType]-annotated types → serialized via the registered [org.apache.spark.sql.types.UserDefinedType]
+ * - [Pair] / [Triple] → [Row] via [ReflectionCache.getSerializer] (generic args approximated as `Any?`)
+ * - Data classes and sealed subclasses → [Row] via [ReflectionCache.getSerializer]
+ * - Enums → [String] (enum constant name)
+ * - [Char] → single-character [String]
+ * - [Array] / [Collection] → Scala [scala.collection.Seq] with elements converted recursively
+ * - [Map] → Scala [scala.collection.Map] with keys and values converted recursively
+ * - All other values → returned unchanged (assumed already Spark-compatible primitives)
+ *
+ * @param declaredType The statically-declared [KType] of [value], used to preserve generic type
+ *   arguments (e.g. `Box<String>`) that would otherwise be lost to JVM erasure when serializing
+ *   nested generic data classes or collection elements.
+ */
 internal fun convertKotlinValueToSpark(value: Any?, declaredType: KType? = null): Any? {
     return when {
         value == null -> null
@@ -75,6 +96,27 @@ internal fun convertKotlinValueToSpark(value: Any?, declaredType: KType? = null)
     }
 }
 
+/**
+ * Converts a Spark row value to the Kotlin type specified by [targetType].
+ *
+ * Spark returns values from a [Row] in JVM-native or Scala types; this function translates
+ * them back to the Kotlin types expected by a data class constructor:
+ * - `null` → `null`
+ * - Value classes → wraps the underlying value by calling the primary constructor
+ * - Enum types → looks up the constant by [String] name
+ * - [java.sql.Date] → [kotlinx.datetime.LocalDate] or [java.time.LocalDate]
+ * - [java.sql.Timestamp] → [kotlinx.datetime.Instant] or [java.time.Instant]
+ * - [org.apache.spark.unsafe.types.UTF8String] → [String] (or [Char] when target is [Char])
+ * - Spark [Short] / [Byte] narrowing — Spark may store these as [Int]; cast is applied
+ * - [java.math.BigDecimal] — returned as-is or parsed from [String] if needed
+ * - Scala [scala.collection.Seq] → [List], [Set], or typed [Array] depending on [targetType]
+ * - Scala [scala.collection.Map] → [Map] with values converted recursively
+ * - [Row] → data class via [ReflectionCache.getDeserializer], sealed subclass via `_type` lookup,
+ *   or UDT deserialized via [org.apache.spark.sql.types.UserDefinedType]
+ * - All other values → returned unchanged
+ *
+ * @param targetType The Kotlin [KType] expected by the receiving constructor parameter.
+ */
 @Suppress("UNCHECKED_CAST")
 internal fun convertSparkValueToKotlin(value: Any?, targetType: KType): Any? {
     if (value == null) return null
