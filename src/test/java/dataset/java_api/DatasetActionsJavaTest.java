@@ -33,7 +33,7 @@ public class DatasetActionsJavaTest extends JavaSparkTestBase {
 
         // Connect guarantees both operations behave identically
         assertEquals(f, h);
-        assertNotNull(f.getName());
+        assertTrue(data.contains(f));
     }
 
     @Test
@@ -43,12 +43,16 @@ public class DatasetActionsJavaTest extends JavaSparkTestBase {
 
         assertEquals(2, arr.length);
         assertEquals(2, list.size());
+        assertTrue(data.contains((Person) arr[0]));
+        assertTrue(data.contains(list.get(0)));
     }
 
     @Test
     public void testTail() {
         Object[] tail = (Object[]) peopleDS.tail(2);
         assertEquals(2, tail.length);
+        assertTrue(data.contains((Person) tail[0]));
+        assertTrue(data.contains((Person) tail[1]));
     }
 
     @Test

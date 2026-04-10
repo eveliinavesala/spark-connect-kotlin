@@ -10,14 +10,16 @@ import java.time.Duration
 /**
  * Base class for Unity Catalog integration tests.
  *
- * Starts the full docker-compose stack (Postgres + Unity Catalog + Spark) defined in
- * `docker-compose.yml`. Built and started via `make uc-test`.
+ * Two modes:
  *
- * Exposes [spark] connected to the compose Spark service, and [getUnityCatalogPort]
- * for REST API calls against the Unity Catalog service.
+ * **Managed mode** (default): testcontainers starts the full docker-compose stack
+ * (Postgres + Unity Catalog + Spark) from `docker-compose.yml`.
  *
- * For ordinary library tests that only need Spark, use [SparkTestBase] instead —
- * it starts a single lightweight container and does not pull in Postgres or Unity Catalog.
+ * **External mode** (`UC_EXTERNAL=true` env var): connects directly to an already-running
+ * stack. Use this when you start the stack manually with `make uc-start` before running tests.
+ * Spark is expected on port 15002, Unity Catalog on port 8080.
+ *
+ * For ordinary library tests that only need Spark, use [SparkTestBase] instead.
  */
 abstract class UnityCatalogTestBase {
 
@@ -26,6 +28,10 @@ abstract class UnityCatalogTestBase {
 
     companion object {
         private val projectRoot = System.getProperty("user.dir")
+
+        /** True when containers are already running externally (UC_EXTERNAL=true). */
+        private val isExternal: Boolean
+            get() = System.getenv("UC_EXTERNAL")?.lowercase() == "true"
 
         private val composeContainer: ComposeContainer by lazy {
             println("--- Starting Unity Catalog test environment (Postgres + Unity + Spark) ---")
@@ -41,7 +47,12 @@ abstract class UnityCatalogTestBase {
         }
 
         val spark: SparkSession by lazy {
-            val sparkPort = composeContainer.getServicePort("spark", 15002)
+            val sparkPort = if (isExternal) {
+                println("--- UC_EXTERNAL=true: connecting to already-running stack on port 15002 ---")
+                15002
+            } else {
+                composeContainer.getServicePort("spark", 15002)
+            }
 
             val session = SparkSession.builder()
                 .remote("sc://localhost:${sparkPort}")
@@ -60,15 +71,17 @@ abstract class UnityCatalogTestBase {
         }
 
         /**
-         * Returns the host port mapped to Unity Catalog's port 8080.
-         * Must only be called after the compose stack has started (i.e., after [spark] is accessed).
+         * Returns the host port for Unity Catalog's REST API.
+         * In external mode this is always 8080; in managed mode it is the port mapped by testcontainers.
          */
-        fun getUnityCatalogPort(): Int = composeContainer.getServicePort("unity", 8080)
+        fun getUnityCatalogPort(): Int =
+            if (isExternal) 8080 else composeContainer.getServicePort("unity", 8080)
 
         @AfterAll
         @JvmStatic
         fun teardown() {
             // Testcontainers manages compose container shutdown via its own shutdown hook.
+            // In external mode, the caller is responsible for stopping the stack.
         }
     }
 }

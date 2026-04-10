@@ -1,6 +1,11 @@
 package spark.kotlin.serialization
 
 import classes.SparkTestBase
+import kotlinx.serialization.serializer
+import org.apache.spark.sql.types.ArrayType
+import org.apache.spark.sql.types.DataType
+import org.apache.spark.sql.types.MapType
+import org.apache.spark.sql.types.StructType
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import spark.kotlin.reflect.toDataFrame
@@ -201,35 +206,6 @@ class SerializationVsReflectionTest : SparkTestBase() {
     }
 
     @Test
-    fun `test performance comparison - serialization should be competitive`() {
-        // Create a medium-sized dataset
-        val people = (1..100).map { i ->
-            SimplePerson("Person$i", 20 + (i % 50))
-        }
-
-        // Measure kotlinx.serialization
-        val serializableStart = System.currentTimeMillis()
-        val serializableDf = people.toSerializableDataFrame(spark)
-        val serializableResult = serializableDf.toSerializableKotlinList<SimplePerson>()
-        val serializableTime = System.currentTimeMillis() - serializableStart
-
-        // Measure reflection
-        val reflectionStart = System.currentTimeMillis()
-        val reflectionDf = people.toDataFrame(spark)
-        val reflectionResult = reflectionDf.toKotlinList<SimplePerson>()
-        val reflectionTime = System.currentTimeMillis() - reflectionStart
-
-        println("kotlinx.serialization time: ${serializableTime}ms")
-        println("Reflection time: ${reflectionTime}ms")
-
-        // Both should produce correct results
-        assertEquals(100, serializableResult.size)
-        assertEquals(100, reflectionResult.size)
-        assertEquals(people, serializableResult)
-        assertEquals(people, reflectionResult)
-    }
-
-    @Test
     fun `test complex nested structures - both implementations`() {
         val company = Company(
             name = "TechCorp",
@@ -261,5 +237,101 @@ class SerializationVsReflectionTest : SparkTestBase() {
         assertEquals("Engineering", reflectionResult[0].departments[0].name)
         assertEquals(2, serializableResult[0].departments[0].employees.size)
         assertEquals(2, reflectionResult[0].departments[0].employees.size)
+    }
+
+    @Test
+    fun `test ComplexData list-of-sealed with integer field - both backends`() {
+        val data = listOf(
+            ComplexData(
+                id = "report-1",
+                metadata = mapOf("source" to "test", "version" to "1"),
+                items = listOf(TextItem(1, "hello world"), NumberItem(2, 3.14))
+            )
+        )
+
+        val serializableResult = data.toSerializableDataFrame(spark).toSerializableKotlinList<ComplexData>()
+        val reflectionResult = data.toDataFrame(spark).toKotlinList<ComplexData>()
+
+        assertEquals(data, serializableResult)
+        assertEquals(data, reflectionResult)
+    }
+
+    @Test
+    fun `test Zoo list-of-sealed - both backends preserve subtype identity and fields`() {
+        val input = listOf(
+            Zoo("Central Park", listOf(Dog("Buddy", "Labrador"), Cat("Whiskers", "Black"), Bird("Tweety", true)))
+        )
+
+        val serializableResult = input.toSerializableDataFrame(spark).toSerializableKotlinList<Zoo>()
+        val reflectionResult = input.toDataFrame(spark).toKotlinList<Zoo>()
+
+        listOf(serializableResult, reflectionResult).forEach { result ->
+            assertEquals(1, result.size)
+            assertEquals("Central Park", result[0].location)
+            assertEquals(3, result[0].animals.size)
+            assertTrue(result[0].animals[0] is Dog);  assertEquals("Labrador", (result[0].animals[0] as Dog).breed)
+            assertTrue(result[0].animals[1] is Cat);  assertEquals("Black",    (result[0].animals[1] as Cat).color)
+            assertTrue(result[0].animals[2] is Bird); assertEquals(true,       (result[0].animals[2] as Bird).canFly)
+        }
+    }
+
+    // Recursively compares two DataTypes for structural equivalence, ignoring field ordering
+    // within StructType at every nesting level. The two backends produce the same fields but
+    // in different orders (reflection: alphabetical; serialization: declaration order).
+    private fun assertDataTypeEquivalent(expected: DataType, actual: DataType, path: String) {
+        when {
+            expected is StructType && actual is StructType -> {
+                val e = expected.fields().sortedBy { it.name() }
+                val a = actual.fields().sortedBy { it.name() }
+                assertEquals(e.size, a.size, "Field count mismatch at '$path'")
+                e.zip(a).forEach { (ef, af) ->
+                    assertEquals(ef.name(), af.name(), "Field name mismatch at '$path'")
+                    assertDataTypeEquivalent(ef.dataType(), af.dataType(), "$path.${ef.name()}")
+                }
+            }
+            expected is ArrayType && actual is ArrayType ->
+                assertDataTypeEquivalent(expected.elementType(), actual.elementType(), "$path[]")
+            expected is MapType && actual is MapType -> {
+                assertDataTypeEquivalent(expected.keyType(), actual.keyType(), "$path{key}")
+                assertDataTypeEquivalent(expected.valueType(), actual.valueType(), "$path{value}")
+            }
+            else -> assertEquals(expected, actual, "DataType mismatch at '$path'")
+        }
+    }
+
+    @Test
+    fun `test schema structural equality - field names and types match`() {
+        // Simple flat struct
+        val simplePeople = listOf(SimplePerson("Alice", 30))
+        val simpleSerialize = simplePeople.toSerializableDataFrame(spark).schema()
+        val simpleReflect   = simplePeople.toDataFrame(spark).schema()
+        assertDataTypeEquivalent(simpleSerialize, simpleReflect, "SimplePerson")
+
+        // Nested struct — field ordering inside Address differs between backends
+        // (reflection: alphabetical; serialization: declaration order), so a deep
+        // order-insensitive comparison is required
+        val nestedPeople = listOf(PersonWithAddress("Alice", 30, Address("1 Main St", "NYC", "10001")))
+        val nestedSerialize = nestedPeople.toSerializableDataFrame(spark).schema()
+        val nestedReflect   = nestedPeople.toDataFrame(spark).schema()
+        assertDataTypeEquivalent(nestedSerialize, nestedReflect, "PersonWithAddress")
+    }
+
+    @Test
+    fun `test hardcoded schema - both backends accept explicit StructType`() {
+        val people = listOf(SimplePerson("Alice", 30), SimplePerson("Bob", 25))
+        val explicitSchema = inferSparkSchema(serializer<SimplePerson>().descriptor)
+
+        val serializableDf = people.toSerializableDataFrame(spark, schema = explicitSchema)
+        val reflectionDf   = people.toDataFrame(spark, schema = explicitSchema)
+
+        // Both DataFrames carry the provided schema
+        assertEquals(explicitSchema, serializableDf.schema())
+        assertEquals(explicitSchema, reflectionDf.schema())
+
+        // Both round-trip correctly with the hardcoded schema
+        val serializableResult = serializableDf.toSerializableKotlinList<SimplePerson>()
+        val reflectionResult   = reflectionDf.toKotlinList<SimplePerson>()
+        assertEquals(people.toSet(), serializableResult.toSet())
+        assertEquals(people.toSet(), reflectionResult.toSet())
     }
 }

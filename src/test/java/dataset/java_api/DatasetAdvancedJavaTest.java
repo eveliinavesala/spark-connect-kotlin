@@ -67,7 +67,8 @@ public class DatasetAdvancedJavaTest extends JavaSparkTestBase {
     public void testStatFunctions() {
         double[] approxQuantile = peopleDF.stat().approxQuantile("age", new double[]{0.5}, 0.0);
         assertEquals(1, approxQuantile.length);
-        assertTrue(approxQuantile[0] >= 25.0);
+        // Exact median (relativeError=0.0) of [25, 30, 35, 40] is one of the two middle values
+        assertTrue(approxQuantile[0] >= 30.0 && approxQuantile[0] <= 35.0);
     }
 
     @Test
@@ -75,7 +76,7 @@ public class DatasetAdvancedJavaTest extends JavaSparkTestBase {
         Dataset<String> jsonDS = peopleDF.toJSON();
         List<String> jsonList = jsonDS.collectAsList();
         assertEquals(4, jsonList.size());
-        assertTrue(jsonList.get(0).contains("\"name\":\"Alice\""));
+        assertTrue(jsonList.stream().anyMatch(json -> json.contains("\"name\":\"Alice\"")));
     }
 
     @Test

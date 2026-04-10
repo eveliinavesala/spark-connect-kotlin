@@ -1,5 +1,6 @@
 package spark_etl
 
+import classes.SparkContainerManager
 import classes.SparkTestBase
 import org.apache.spark.sql.functions.*
 import org.junit.jupiter.api.Assertions.*
@@ -21,7 +22,7 @@ class SparkETLTest : SparkTestBase() {
         @BeforeAll
         @JvmStatic
         fun setupData() {
-            df = spark.read()
+            df = SparkContainerManager.sparkSession.read()
                 .option("header", "true")
                 .option("inferSchema", "true")
                 .csv(CSV_PATH)

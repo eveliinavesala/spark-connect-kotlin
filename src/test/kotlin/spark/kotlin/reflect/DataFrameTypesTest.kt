@@ -1,20 +1,15 @@
 package spark.kotlin.reflect
 
 import classes.SparkTestBase
-import kotlinx.datetime.Clock
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.todayIn
-import org.apache.spark.sql.RowFactory
-import org.apache.spark.sql.types.StructType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import spark.kotlin.reflect.toDataFrame
 import spark.kotlin.reflect.toKotlinList
-import java.sql.Date
-import java.sql.Timestamp
 import java.time.Instant
 import java.time.LocalDate
+import kotlinx.datetime.LocalDate as KotlinxLocalDate
+import kotlinx.datetime.Instant as KotlinxInstant
 
 // internal (not private) — file-private types can't be reflected on from library code
 internal sealed interface AppEvent
@@ -27,6 +22,12 @@ class DataFrameTypesTest : SparkTestBase() {
         val eventId: Int,
         val eventDate: LocalDate,
         val eventTime: Instant
+    )
+
+    data class KotlinxEvent(
+        val eventId: Int,
+        val eventDate: KotlinxLocalDate,
+        val eventTime: KotlinxInstant
     )
 
     @Test
@@ -51,39 +52,20 @@ class DataFrameTypesTest : SparkTestBase() {
     }
 
     @Test
-    fun `should handle kotlinx datetime types`() {
-        // kotlinx datetime types are converted to java.sql equivalents for Spark compatibility
-        val today = Clock.System.todayIn(TimeZone.UTC)
-        val now = Clock.System.now()
-
+    fun `should round-trip kotlinx datetime LocalDate and Instant`() {
         val data = listOf(
-            mapOf(
-                "eventId" to 1,
-                "eventDate" to Date.valueOf(today.toString()),
-                "eventTime" to Timestamp.from(Instant.parse(now.toString()))
-            )
-        )
-        
-        // Use RowFactory.create instead of Row.fromSeq to avoid Scala interop issues
-        val rows = data.map { 
-            RowFactory.create(it["eventId"], it["eventDate"], it["eventTime"]) 
-        }
-        
-        val df = spark.createDataFrame(rows,
-            StructType()
-                .add("eventId", "int")
-                .add("eventDate", "date")
-                .add("eventTime", "timestamp")
+            KotlinxEvent(1, KotlinxLocalDate.parse("2024-06-15"), KotlinxInstant.parse("2024-06-15T10:00:00Z")),
+            KotlinxEvent(2, KotlinxLocalDate.parse("2024-12-01"), KotlinxInstant.parse("2024-12-01T23:59:59Z"))
         )
 
-        df.show()
-        
-        val result = df.first()
-        val resultDate = result.getDate(1).toLocalDate()
-        val resultTime = result.getTimestamp(2).toInstant()
+        val results = data.toDataFrame(spark).toKotlinList<KotlinxEvent>()
 
-        assertEquals(today.toString(), resultDate.toString())
-        assertEquals(now.epochSeconds, resultTime.epochSecond)
+        assertEquals(2, results.size)
+        assertEquals(data[0].eventDate, results[0].eventDate)
+        assertEquals(data[1].eventDate, results[1].eventDate)
+        // Spark TimestampType has microsecond precision; compare at second granularity
+        assertEquals(data[0].eventTime.epochSeconds, results[0].eventTime.epochSeconds)
+        assertEquals(data[1].eventTime.epochSeconds, results[1].eventTime.epochSeconds)
     }
 
     @Test
