@@ -62,6 +62,7 @@ internal class RowSerializer private constructor(
                 val prop = memberProp
                     ?: if (field.name() == "_type" && kClass.isSealed) null
                        else if (kClass.isSealed) null // union schema field absent on this subclass — resolved at runtime
+                       else if (kClass == Pair::class || kClass == Triple::class) null // handled by FieldSerializer.extract
                        else error("Property '${field.name()}' not found in ${kClass.simpleName}")
                 // Resolve generic type args so nested Box<String> isn't lost to erasure as Box<*>
                 val declaredType = memberProp?.returnType?.let { resolveTypeParam(it, argMap) }
