@@ -81,13 +81,32 @@ tasks.register<Test>("demoTest") {
     )
 }
 
+// Notebook fat JAR — bundles main library + full runtimeClasspath (Spark Connect, Arrow, gRPC, …)
+// so notebooks only need a single @file:DependsOn. Output goes to notebooks/lib/ and is gitignored.
+// Build: ./gradlew notebookFatJar
+val notebookFatJar = tasks.register<ShadowJar>("notebookFatJar") {
+    description = "Self-contained JAR for Kotlin notebook demos. Bundles Spark Connect client and all runtime dependencies."
+    group = "build"
+    archiveBaseName.set("spark-connect-kotlin-notebook")
+    archiveClassifier.set("")
+    archiveVersion.set("")
+    destinationDirectory.set(file("notebooks/lib"))
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from(sourceSets.main.get().output)
+    configurations = listOf(project.configurations.runtimeClasspath.get())
+    mergeServiceFiles()
+}
+
 // Optimized "test fat jar" - includes test classes but excludes provided dependencies
 val testFatJar = tasks.register<ShadowJar>("testFatJar") {
     archiveClassifier.set("test-fat")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    dependsOn("compileDemoKotlin", "compileDemoTestKotlin")
 
     from(sourceSets.main.get().output)
     from(sourceSets.test.get().output)
+    from(sourceSets["demo"].output)
+    from(sourceSets["demoTest"].output)
 
     configurations = listOf(project.configurations.testRuntimeClasspath.get())
 
@@ -111,7 +130,9 @@ val testFatJar = tasks.register<ShadowJar>("testFatJar") {
 
 tasks.test {
     dependsOn(testFatJar)
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags("benchmark")
+    }
     System.getenv("DOCKER_HOST")?.let {
         environment("DOCKER_HOST", it)
     }
@@ -119,6 +140,28 @@ tasks.test {
         "--add-opens=java.base/java.nio=ALL-UNNAMED",
         "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
     )
+}
+
+tasks.register<Test>("benchmark") {
+    description = "Runs @Tag(\"benchmark\") tests only."
+    group = "verification"
+    dependsOn(testFatJar)
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform {
+        includeTags("benchmark")
+    }
+    System.getenv("DOCKER_HOST")?.let {
+        environment("DOCKER_HOST", it)
+    }
+    jvmArgs(
+        "--add-opens=java.base/java.nio=ALL-UNNAMED",
+        "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
+    )
+    testLogging {
+        events("passed", "failed")
+        showStandardStreams = true
+    }
 }
 
 kotlin {

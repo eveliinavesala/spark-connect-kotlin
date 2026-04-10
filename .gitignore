@@ -49,6 +49,9 @@ bin/
 .env
 /.env
 
+### Notebook fat JAR (built by ./gradlew notebookFatJar) ###
+notebooks/lib/
+
 ### Performance Test Data ###
 test-results/performance/*.csv
 
