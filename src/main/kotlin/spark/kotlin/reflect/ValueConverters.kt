@@ -58,9 +58,19 @@ internal fun convertKotlinValueToSpark(value: Any?, declaredType: KType? = null)
         }
         value is Enum<*> -> value.name
         value is Char -> value.toString()
-        value is Array<*> -> CollectionConverters.asScala(value.map { convertKotlinValueToSpark(it) }.toList()).toSeq()
-        value is Collection<*> -> CollectionConverters.asScala(value.map { convertKotlinValueToSpark(it) }).toSeq()
-        value is Map<*, *> -> CollectionConverters.asScala(value.map { (k, v) -> convertKotlinValueToSpark(k) to convertKotlinValueToSpark(v) }.toMap())
+        value is Array<*> -> {
+            val elementType = declaredType?.arguments?.firstOrNull()?.type
+            CollectionConverters.asScala(value.map { convertKotlinValueToSpark(it, elementType) }.toList()).toSeq()
+        }
+        value is Collection<*> -> {
+            val elementType = declaredType?.arguments?.firstOrNull()?.type
+            CollectionConverters.asScala(value.map { convertKotlinValueToSpark(it, elementType) }).toSeq()
+        }
+        value is Map<*, *> -> {
+            val keyType   = declaredType?.arguments?.getOrNull(0)?.type
+            val valueType = declaredType?.arguments?.getOrNull(1)?.type
+            CollectionConverters.asScala(value.map { (k, v) -> convertKotlinValueToSpark(k, keyType) to convertKotlinValueToSpark(v, valueType) }.toMap())
+        }
         else -> value
     }
 }
