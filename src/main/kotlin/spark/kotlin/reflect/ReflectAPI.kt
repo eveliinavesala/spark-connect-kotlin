@@ -48,17 +48,31 @@ inline fun <reified T : Any> Dataset<Row>.toKotlinList(): List<T> {
     return this.toKotlinListFromDataFrame(typeOf<T>())
 }
 
+/**
+ * Non-inline entry point for [toDataFrame] when the [KType] is already available at the call site.
+ *
+ * Delegates to [createDataFrameViaReflectionInternal]. Prefer the inline [toDataFrame] extension
+ * when [T] is a reified type parameter.
+ */
 fun <T : Any> SparkSession.createDataFrameFromKotlinList(data: List<T>, kType: KType, schema: StructType? = null): Dataset<Row> {
     return createDataFrameViaReflectionInternal(data, kType, schema)
 }
 
+/**
+ * Non-inline entry point for [toKotlinList] when the [KType] is already available at the call site.
+ *
+ * Delegates to [toKotlinClassListInternal]. Prefer the inline [toKotlinList] extension when [T]
+ * is a reified type parameter.
+ */
 fun <T : Any> Dataset<Row>.toKotlinListFromDataFrame(kType: KType): List<T> {
     return toKotlinClassListInternal<T>(kType)
 }
 
 /**
- * Returns the Spark StructType schema inferred from a given Kotlin type.
- * Useful for schema validation, DDL generation, or manual DataFrame creation.
+ * Returns the Spark [StructType] inferred from [kType] via [ReflectionCache].
+ *
+ * The result is cached; subsequent calls for the same [KType] return the cached value.
+ * Useful for schema validation, DDL generation, or constructing a DataFrame manually.
  */
 fun getSparkSchema(kType: KType): StructType {
     return ReflectionCache.getSchema(kType)
@@ -82,14 +96,20 @@ internal fun <T : Any> Dataset<Row>.toKotlinClassListInternal(kType: KType): Lis
     val kClass = kType.jvmErasure
 
     if (kClass.isSealed) {
+        // Sealed: each row may be a different subclass — subclass is selected per-row via "_type".
+        // Column sets differ across subclasses, so we skip the batch-index optimisation here.
+        val typeColumnIndex = this.schema().fieldIndex("_type")
         return collectedRows.map { row ->
-            val typeName = row.getAs<String>("_type")
-            val subClass = kClass.allLeafSubclasses().find { it.simpleName == typeName } ?: error("Unknown subclass type '$typeName'")
-            // Note: Sealed subclasses are assumed non-generic here; generic sealed subclasses would require additional type argument threading
+            val typeName = row.get(typeColumnIndex) as String
+            val subClass = kClass.allLeafSubclasses().find { it.simpleName == typeName }
+                ?: error("Unknown subclass type '$typeName'")
             @Suppress("UNCHECKED_CAST")
             ReflectionCache.getDeserializer<Any>(subClass.createType()).deserialize(row) as T
         }
     }
+
+    // Non-sealed: all rows share the same schema — pre-build column indices once per batch.
     val deserializer = ReflectionCache.getDeserializer<T>(kType)
-    return collectedRows.map { deserializer.deserialize(it) }
+    val columnIndices = deserializer.buildColumnIndexMap(this.schema())
+    return collectedRows.map { deserializer.deserialize(it, columnIndices) }
 }
