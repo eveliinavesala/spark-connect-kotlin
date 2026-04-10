@@ -5,10 +5,11 @@ import kotlinx.serialization.descriptors.*
 import org.apache.spark.sql.types.*
 
 /**
- * Schema inference from kotlinx.serialization descriptors to Spark types.
+ * Schema inference from kotlinx.serialization [SerialDescriptor]s to Spark SQL types.
  *
- * This file handles the conversion of Kotlin type information (via SerialDescriptor)
- * into Spark SQL schema (StructType, DataType, etc.).
+ * Provides [inferSparkSchema] and [inferSparkType] — the descriptor-driven counterparts to the
+ * reflection-backend functions in `reflect/SchemaInference.kt`. Schema derivation is purely
+ * structural and requires no runtime instances; it operates entirely on descriptor metadata.
  */
 
 // ============================================================================
@@ -16,10 +17,18 @@ import org.apache.spark.sql.types.*
 // ============================================================================
 
 /**
- * Infer a Spark StructType schema from a SerialDescriptor.
+ * Derives a Spark [StructType] from a [SerialDescriptor].
  *
- * @param descriptor The kotlinx.serialization descriptor describing the type
- * @return A Spark StructType that can represent the Kotlin type
+ * For `CLASS` descriptors each element becomes a [org.apache.spark.sql.types.StructField];
+ * nullability is taken from the element descriptor's [SerialDescriptor.isNullable] flag, and
+ * field ordering matches the declaration order in the [kotlinx.serialization.Serializable] class.
+ *
+ * For `SEALED` descriptors a flat union schema is produced:
+ * - Column 0: `_type` ([org.apache.spark.sql.types.StringType], non-nullable) — the subtype discriminator
+ * - Columns 1..N: one nullable column per unique field name across all subtype `CLASS` descriptors,
+ *   in first-seen order. Fields shared by multiple subtypes appear only once.
+ *
+ * Results are not cached here; caching is the responsibility of [SerializationCache].
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal fun inferSparkSchema(descriptor: SerialDescriptor): StructType {
@@ -57,11 +66,19 @@ internal fun inferSparkSchema(descriptor: SerialDescriptor): StructType {
 }
 
 /**
- * Infer a Spark DataType from a SerialDescriptor.
+ * Maps a single [SerialDescriptor] to the corresponding Spark [DataType].
  *
- * @param descriptor The kotlinx.serialization descriptor describing the type
- * @param isNullable Whether the field can be null (unused currently but kept for future use)
- * @return The corresponding Spark DataType
+ * - Primitive kinds → scalar Spark types. `STRING` descriptors with serial name
+ *   `kotlinx.datetime.LocalDate` or `kotlinx.datetime.Instant` map to [org.apache.spark.sql.types.DateType]
+ *   and [org.apache.spark.sql.types.TimestampType] respectively; all others map to [org.apache.spark.sql.types.StringType].
+ * - `ENUM` → [org.apache.spark.sql.types.StringType] (stored as the constant name).
+ * - `LIST` → [org.apache.spark.sql.types.ArrayType] with element type inferred recursively; elements are nullable.
+ * - `MAP` → [org.apache.spark.sql.types.MapType] with key and value types inferred recursively; values are nullable.
+ * - `CLASS` → [org.apache.spark.sql.types.StructType] via [inferSparkSchema], except for datetime special cases above.
+ * - `SEALED` → [org.apache.spark.sql.types.StructType] via [inferSparkSchema] (flat union schema).
+ * - Unknown kinds → [org.apache.spark.sql.types.StringType] as a fallback.
+ *
+ * @param isNullable Reserved for future use; not currently consulted during type mapping.
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal fun inferSparkType(descriptor: SerialDescriptor, isNullable: Boolean): DataType {

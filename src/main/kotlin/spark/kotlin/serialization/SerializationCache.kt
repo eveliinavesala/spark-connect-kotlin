@@ -6,15 +6,21 @@ import org.apache.spark.sql.types.StructType
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Cache for serialization-related objects to improve performance.
+ * Thread-safe cache for serialization-derived artefacts.
  *
- * This cache stores:
- * - Spark schemas derived from SerialDescriptors
- * - SparkSerializer instances for encoding
- * - SparkDeserializer instances for decoding
+ * Cache keys are [SerialDescriptor] instances; equality is determined by the descriptor's
+ * serial name and structure, so the same annotated class always resolves to the same entry
+ * regardless of call site. All maps are [ConcurrentHashMap]-backed for lock-free reads.
  *
- * All caches use SerialDescriptor as the key to ensure proper cache hits
- * for the same type across different calls.
+ * Three artefact families are maintained:
+ * - **schemas** — [StructType] instances inferred by [inferSparkSchema]
+ * - **serializers** — [SparkSerializer] instances for encoding Kotlin objects to [org.apache.spark.sql.Row]
+ * - **deserializers** — [SparkDeserializer] instances for decoding [org.apache.spark.sql.Row] to Kotlin objects
+ *
+ * When a caller supplies an explicit [org.apache.spark.sql.types.StructType] override (e.g. from
+ * Unity Catalog), [getSparkSerializer] is bypassed and [SparkSerializer] is instantiated directly,
+ * because a serializer is bound to a schema at construction time and caching by descriptor alone
+ * would produce incorrect results if the same type is used with different schemas.
  */
 internal object SerializationCache {
 
@@ -22,9 +28,7 @@ internal object SerializationCache {
     private val serializerCache = ConcurrentHashMap<SerialDescriptor, SparkSerializer<*>>()
     private val deserializerCache = ConcurrentHashMap<SerialDescriptor, SparkDeserializer<*>>()
 
-    /**
-     * Get or compute the Spark schema for a given serializer.
-     */
+    /** Returns the cached [StructType] for [serializer], computing it via [inferSparkSchema] on first access. */
     fun getSchema(serializer: KSerializer<*>): StructType {
         return schemaCache.getOrPut(serializer.descriptor) {
             inferSparkSchema(serializer.descriptor)
@@ -32,7 +36,10 @@ internal object SerializationCache {
     }
 
     /**
-     * Get or create a SparkSerializer for encoding objects to Spark Rows.
+     * Returns the cached [SparkSerializer] for [serializer].
+     *
+     * The cached instance uses the inferred schema; if a schema override is required, construct
+     * [SparkSerializer] directly and do not use this method.
      */
     fun <T> getSparkSerializer(serializer: KSerializer<T>): SparkSerializer<T> {
         @Suppress("UNCHECKED_CAST")
@@ -41,9 +48,7 @@ internal object SerializationCache {
         } as SparkSerializer<T>
     }
 
-    /**
-     * Get or create a SparkDeserializer for decoding Spark Rows to objects.
-     */
+    /** Returns the cached [SparkDeserializer] for [serializer], creating it on first access. */
     fun <T> getSparkDeserializer(serializer: KSerializer<T>): SparkDeserializer<T> {
         @Suppress("UNCHECKED_CAST")
         return deserializerCache.getOrPut(serializer.descriptor) {
@@ -51,9 +56,7 @@ internal object SerializationCache {
         } as SparkDeserializer<T>
     }
 
-    /**
-     * Clear all caches. Useful for testing or memory management.
-     */
+    /** Clears all caches. Primarily useful in tests to ensure schema isolation between test cases. */
     fun clearAll() {
         schemaCache.clear()
         serializerCache.clear()

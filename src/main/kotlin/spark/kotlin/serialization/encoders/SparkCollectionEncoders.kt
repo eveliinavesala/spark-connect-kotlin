@@ -19,10 +19,12 @@ import java.sql.Timestamp
 import scala.collection.immutable.Map
 
 /**
- * Encoders for collection types (List and Map).
+ * [AbstractEncoder] implementations for Spark collection fields.
  *
- * These encoders handle the serialization of Kotlin collections
- * to Spark's Scala-based collection types.
+ * Spark's [org.apache.spark.sql.Row] stores list fields as Scala [scala.collection.Seq] and map
+ * fields as Scala [scala.collection.immutable.Map]. These encoders collect Kotlin values and
+ * convert them to the required Scala types via [scala.jdk.javaapi.CollectionConverters] on
+ * [endStructure], then pass the result to the parent encoder via an `addToParent` callback.
  */
 
 // ============================================================================
@@ -30,10 +32,14 @@ import scala.collection.immutable.Map
 // ============================================================================
 
 /**
- * Encoder for List/Array types.
- * Collects elements and converts to Scala Seq for Spark.
+ * [AbstractEncoder] for `ArrayType` fields.
  *
- * @param addToParent callback invoked with the finished ScalaSeq when encoding completes
+ * Elements are collected in [elements] as Kotlin/JVM types; on [endStructure] the list is
+ * converted to a Scala `Seq` via [CollectionConverters.asScala] and handed to [addToParent].
+ * Nested struct elements are encoded via [SparkStructEncoder]; nested sealed elements via
+ * [SparkSealedEncoder] with a schema inferred from the element descriptor.
+ *
+ * @param addToParent Callback invoked with the finished Scala `Seq` when [endStructure] is called.
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkListEncoder(
@@ -96,10 +102,14 @@ internal class SparkListEncoder(
 // ============================================================================
 
 /**
- * Encoder for Map types.
- * Collects key-value pairs and converts to Scala immutable Map for Spark.
+ * [AbstractEncoder] for `MapType` fields.
  *
- * @param addToParent callback invoked with the finished Scala Map when encoding completes
+ * kotlinx.serialization encodes maps as interleaved key/value sequences; [addElement] alternates
+ * between [keys] and [values] using the [isKey] flag. On [endStructure] the two lists are zipped
+ * into a Kotlin [Map] and converted to a Scala immutable `Map` via [CollectionConverters.asScala].
+ * Only primitive keys and values are supported; nested struct values are not handled.
+ *
+ * @param addToParent Callback invoked with the finished Scala `Map` when [endStructure] is called.
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkMapEncoder(

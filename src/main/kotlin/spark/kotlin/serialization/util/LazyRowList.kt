@@ -5,11 +5,12 @@ import java.util.AbstractList
 import spark.kotlin.serialization.SparkSerializer
 
 /**
- * Lazy list implementation for efficient DataFrame creation.
+ * A [java.util.AbstractList] adapter that defers Row serialization until each element is accessed.
  *
- * This list doesn't serialize objects to Rows until they are actually
- * accessed by Spark, avoiding unnecessary work if Spark applies
- * optimizations that don't need all rows.
+ * Spark's [org.apache.spark.sql.SparkSession.createDataFrame] accepts a Java [java.util.List]<[org.apache.spark.sql.Row]>.
+ * By wrapping source data in a lazy list rather than eagerly encoding every element up front,
+ * serialization cost is incurred only for rows that Spark actually materialises — relevant when
+ * limit or filter push-downs reduce the number of rows consumed.
  */
 internal class LazySerializableRowList<T>(
     private val sourceData: List<T>,

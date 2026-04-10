@@ -7,20 +7,23 @@ import org.apache.spark.sql.types.StructType
 import spark.kotlin.serialization.encoders.SparkRowEncoder
 
 /**
- * Serializer that converts Kotlin objects to Spark Rows.
+ * Bridges [KSerializer] to a Spark [Row] via [SparkRowEncoder].
  *
- * This class acts as a bridge between kotlinx.serialization and Spark,
- * using SparkRowEncoder to perform the actual encoding.
+ * An instance is bound to a specific [KSerializer] and [StructType] at construction time.
+ * [SparkRowEncoder] is created fresh on each [serialize] call; the encoder is stateful and
+ * accumulates field values as the descriptor is traversed. The finished row is retrieved via
+ * [SparkRowEncoder.getRow] after encoding completes.
+ *
+ * Instances are obtained through [SerializationCache.getSparkSerializer]. When a non-default
+ * schema is supplied to the public API (e.g. from Unity Catalog), a new instance is created
+ * directly and not stored in the cache.
  */
 internal class SparkSerializer<T>(
     private val serializer: KSerializer<T>,
     private val schema: StructType
 ) {
     /**
-     * Serialize a Kotlin object to a Spark Row.
-     *
-     * @param value The Kotlin object to serialize
-     * @return A Spark Row containing the serialized data
+     * Encodes [value] to a [GenericRowWithSchema] bound to [schema].
      */
     fun serialize(value: T): Row {
         val encoder = SparkRowEncoder(schema)

@@ -20,10 +20,22 @@ import java.sql.Date
 import java.sql.Timestamp
 
 /**
- * Root encoder that converts Kotlin objects to Spark Rows.
+ * Root [AbstractEncoder] that converts a Kotlin object to a Spark [Row] via a [kotlinx.serialization.KSerializer].
  *
- * This encoder is the entry point for serialization and delegates to
- * specialized encoders for different data structures.
+ * Encoded field values are accumulated in [values] in declaration order. When encoding is
+ * complete, [getRow] wraps them in a [GenericRowWithSchema] bound to the provided [schema].
+ *
+ * Delegation on [beginStructure]:
+ * - `LIST` → [SparkListEncoder] (produces a Scala `Seq`)
+ * - `MAP` → [SparkMapEncoder] (produces a Scala immutable `Map`)
+ * - `CLASS` at depth 1 (root) → this encoder (root fields collected in-place)
+ * - `CLASS` at depth > 1 (nested) → [SparkStructEncoder] (produces a [org.apache.spark.sql.catalyst.expressions.GenericRow])
+ * - `SEALED` → [SparkSealedEncoder] (produces a flat [GenericRowWithSchema]; its columns are
+ *   unpacked and appended to [values] by the `addToParent` callback)
+ * - `kotlinx.datetime.*` → special-cased in [encodeSerializableValue]; `beginStructure` returns this
+ *
+ * [structureDepth] tracks nesting so that the root object and nested objects follow different paths.
+ * Child encoders append their result to [values] via [addValue] as their [endStructure] is called.
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkRowEncoder(
@@ -146,8 +158,9 @@ internal class SparkRowEncoder(
     }
 
     /**
-     * Internal method to add a value to the row.
-     * Used by child encoders via reflection.
+     * Appends [value] to the flat values list.
+     * Invoked by child encoders (list, map, struct, sealed) via their `addToParent` callback
+     * when their [endStructure] is called.
      */
     internal fun addValue(value: Any?) {
         values.add(value)

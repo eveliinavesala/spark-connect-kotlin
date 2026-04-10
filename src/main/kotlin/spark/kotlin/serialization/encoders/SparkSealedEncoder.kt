@@ -10,12 +10,24 @@ import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types.StructType
 
 /**
- * Encoder for sealed classes (polymorphic types).
+ * [AbstractEncoder] for sealed class (`SEALED`) descriptors.
  *
- * Produces a flat Row: [_type discriminator, field1, field2, ...] where all
- * fields from all subtypes appear in the schema and absent fields are null.
- * The schema must be the flat union schema produced by inferSparkSchema for
- * the sealed descriptor.
+ * Produces a flat [GenericRowWithSchema] containing:
+ * - Position 0: `_type` string — the subtype simple name captured from the first [encodeString] call.
+ * - Positions 1..N: field values for the active subtype placed at their schema-position indices;
+ *   positions belonging to other subtypes remain `null`.
+ *
+ * Encoding proceeds in two phases:
+ * 1. kotlinx.serialization calls [encodeString] with the discriminator, then [beginStructure]
+ *    with the subtype descriptor — delegation proceeds to [SparkSealedSubtypeEncoder] which
+ *    records each field into [capturedFields] keyed by field name.
+ * 2. On [endStructure], a `values` array of size `sealedSchema.fields().size` is allocated,
+ *    [typeName] is placed at index 0, and captured field values are placed at their schema
+ *    positions by name lookup.
+ *
+ * [sealedSchema] must be the flat union schema produced by [spark.kotlin.serialization.inferSparkSchema]
+ * for the sealed descriptor. When used as a list element, [addToParent] receives only the fields
+ * (not the full row) to be appended to the parent list.
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkSealedEncoder(
@@ -50,10 +62,15 @@ internal class SparkSealedEncoder(
 }
 
 /**
- * Capture encoder for a sealed subtype.
+ * [AbstractEncoder] that captures a sealed subtype's field values by name.
  *
- * Records each field's name→value into [capturedFields] so that
- * [SparkSealedEncoder] can place them at the correct position in the flat Row.
+ * [encodeElement] records the current field name from the descriptor before each primitive
+ * encode call; the primitive encode then stores the value under that name in [capturedFields].
+ * [SparkSealedEncoder] reads [capturedFields] on [endStructure] to place values at their
+ * correct positions in the flat union row.
+ *
+ * Nested structures within sealed subtype fields are not currently supported;
+ * [beginStructure] returns `this` as a no-op.
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkSealedSubtypeEncoder(

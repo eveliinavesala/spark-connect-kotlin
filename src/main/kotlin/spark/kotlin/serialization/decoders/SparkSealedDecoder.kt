@@ -12,11 +12,16 @@ import kotlinx.serialization.modules.SerializersModule
 import org.apache.spark.sql.Row
 
 /**
- * Decoder for sealed classes (polymorphic types).
+ * [AbstractDecoder] for sealed class (`SEALED`) descriptors.
  *
- * Reads the _type discriminator from column 0, then delegates to
- * [SparkSealedSubtypeDecoder] to read each subtype field by name
- * from the flat union schema row.
+ * Reads the `_type` discriminator string from column 0 of the flat union [Row] and exposes it
+ * as the first element of the sealed descriptor. When kotlinx.serialization then calls
+ * [beginStructure] with the resolved subtype descriptor, delegation proceeds to
+ * [SparkSealedSubtypeDecoder] which maps subtype fields by name from the same flat row.
+ *
+ * The flat union schema expected here is produced by [spark.kotlin.serialization.inferSparkSchema]
+ * for `SEALED` descriptors: column 0 is `_type`, followed by one nullable column per unique field
+ * name across all subtypes.
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkSealedDecoder(
@@ -45,11 +50,15 @@ internal class SparkSealedDecoder(
 }
 
 /**
- * Decoder for a specific sealed subtype within a flat union Row.
+ * [AbstractDecoder] for a specific sealed subtype within a flat union [Row].
  *
- * Maps each field of the subtype to its column in the flat Row by name,
- * since the flat schema contains all subtypes' fields and only the relevant
- * fields are non-null for a given row.
+ * Each subtype field is mapped to its flat-row column index by name at construction time;
+ * the mapping is stored in [fieldColumnIndices] and reused for every primitive decode call.
+ * Fields of other subtypes (absent in this subtype's descriptor) remain in the row as nulls
+ * and are simply not visited.
+ *
+ * Nested structures within sealed subtype fields are not currently supported;
+ * [beginStructure] returns `this` as a no-op.
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkSealedSubtypeDecoder(

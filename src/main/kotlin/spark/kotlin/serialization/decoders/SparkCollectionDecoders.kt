@@ -11,10 +11,11 @@ import kotlinx.serialization.modules.SerializersModule
 import org.apache.spark.sql.Row
 
 /**
- * Decoders for collection types (List and Map).
+ * [AbstractDecoder] implementations for Spark collection fields.
  *
- * These decoders handle the deserialization of Spark's Scala-based
- * collections back to Kotlin collections.
+ * Spark returns list fields as Scala [scala.collection.Seq] and map fields as Scala
+ * [scala.collection.Map]. Both types are obtained from a parent [Row] via `getList()` /
+ * `getJavaMap()` (converting to Java types) before being wrapped by these decoders.
  */
 
 // ============================================================================
@@ -22,8 +23,11 @@ import org.apache.spark.sql.Row
 // ============================================================================
 
 /**
- * Decoder for List/Array types from Spark.
- * Reads elements from a Spark list field.
+ * [AbstractDecoder] for a Spark `ArrayType` field.
+ *
+ * Iterates [list] by index; [decodeElementIndex] returns the current index until all elements
+ * are consumed, then [CompositeDecoder.DECODE_DONE]. Struct elements are delegated to
+ * [SparkRowDecoder]; sealed elements to [SparkSealedDecoder].
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkListDecoder(
@@ -80,8 +84,12 @@ internal class SparkListDecoder(
 // ============================================================================
 
 /**
- * Decoder for Map types from Spark.
- * Reads key-value pairs from a Spark map field.
+ * [AbstractDecoder] for a Spark `MapType` field.
+ *
+ * kotlinx.serialization encodes maps as interleaved key/value sequences. [decodeElementIndex]
+ * advances a single counter over `entries.size * 2` virtual indices; [getValue] alternates
+ * between key and value using the [isKey] flag. Only primitive keys and values are supported;
+ * nested struct map values are not handled.
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkMapDecoder(

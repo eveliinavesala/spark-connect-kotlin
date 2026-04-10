@@ -16,12 +16,14 @@ import java.sql.Timestamp
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 
 /**
- * Encoder for struct/object fields within a parent structure.
+ * [AbstractEncoder] for a nested data class field within a parent encoder.
  *
- * Collects field values and passes them as a [GenericRow] to the parent
- * via [addToParent] when structure encoding is complete.
+ * Accumulates field values in [fieldValues] and, on [endStructure], wraps them in a
+ * [GenericRow] passed to [addToParent]. The absence of a schema in [GenericRow] (vs
+ * [GenericRowWithSchema]) is intentional: the schema is carried by the outermost row,
+ * and nested struct schemas are recovered from the parent field type during decoding.
  *
- * @param addToParent callback invoked with the finished GenericRow when encoding completes
+ * @param addToParent Callback invoked with the finished [GenericRow] when [endStructure] is called.
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkStructEncoder(
