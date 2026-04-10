@@ -4,6 +4,7 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import kotlinx.serialization.json.*
 
 /**
  * Simple REST client for Unity Catalog API operations.
@@ -172,7 +173,8 @@ object UnityCatalogRestClient {
             println("Creating table '$catalogName.$schemaName.$tableName' at $baseUrl")
             val response = client.send(request, HttpResponse.BodyHandlers.ofString())
             println("Response status: ${response.statusCode()}, body: ${response.body()}")
-            response.statusCode() == 200 || response.statusCode() == 201
+            // 409 ALREADY_EXISTS = table is registered (idempotent); count as success
+            response.statusCode() == 200 || response.statusCode() == 201 || response.statusCode() == 409
         } catch (e: Exception) {
             println("Failed to create table: ${e.message}")
             e.printStackTrace()
@@ -265,6 +267,43 @@ object UnityCatalogRestClient {
         }
     }
     
+    /**
+     * Get the column definitions of a table as a list of maps.
+     * Keys: "name" (String), "type_name" (String), "nullable" (Boolean), "position" (Int).
+     * Returns empty list if the table does not exist or the request fails.
+     */
+    fun getTableColumns(
+        baseUrl: String,
+        catalogName: String,
+        schemaName: String,
+        tableName: String
+    ): List<Map<String, Any>> {
+        val fullName = "$catalogName.$schemaName.$tableName"
+        val request = HttpRequest.newBuilder()
+            .uri(URI.create("$baseUrl/api/2.1/unity-catalog/tables/$fullName"))
+            .GET()
+            .build()
+
+        return try {
+            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+            if (response.statusCode() != 200) return emptyList()
+            val root = Json.parseToJsonElement(response.body()).jsonObject
+            val columns = root["columns"]?.jsonArray ?: return emptyList()
+            columns.map { elem ->
+                val col = elem.jsonObject
+                buildMap {
+                    put("name",      col["name"]?.jsonPrimitive?.content ?: "")
+                    put("type_name", col["type_name"]?.jsonPrimitive?.content ?: "STRING")
+                    put("nullable",  col["nullable"]?.jsonPrimitive?.booleanOrNull ?: true)
+                    put("position",  col["position"]?.jsonPrimitive?.intOrNull ?: 0)
+                }
+            }
+        } catch (e: Exception) {
+            println("Failed to get columns for $fullName: ${e.message}")
+            emptyList()
+        }
+    }
+
     // Helper function to extract field values from JSON using regex
     private fun extractFieldValue(json: String, field: String): String {
         val pattern = """"$field"\s*:\s*"([^"]*)"""".toRegex()
