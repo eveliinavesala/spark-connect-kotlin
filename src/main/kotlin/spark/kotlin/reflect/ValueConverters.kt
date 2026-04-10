@@ -129,6 +129,11 @@ internal fun convertSparkValueToKotlin(value: Any?, targetType: KType): Any? {
                 udt.deserialize(value)
             } else if (targetClass.isData || targetClass == Pair::class || targetClass == Triple::class) {
                 ReflectionCache.getDeserializer<Any>(targetType).deserialize(value)
+            } else if (targetClass.isSealed) {
+                val typeName = value.getAs<String>("_type")
+                val subClass = targetClass.allLeafSubclasses().find { it.simpleName == typeName }
+                    ?: error("Unknown subclass type '$typeName' for sealed class '${targetClass.simpleName}'")
+                ReflectionCache.getDeserializer<Any>(subClass.createType()).deserialize(value)
             } else {
                 value
             }
