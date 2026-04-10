@@ -64,3 +64,6 @@ devdocs/*
 .idea/
 **/**/*.md
 
+notebooks/.ipynb_checkpoints/
+notebooks/.jupyter/
+
