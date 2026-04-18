@@ -10,6 +10,7 @@ junit-jupiter       = "6.0.3"
 shadow              = "9.2.0"
 delta-lake          = "4.0.0"
 detekt              = "1.23.8"
+ktlint-gradle       = "14.2.0"
 
 [libraries]
 spark-connect-client         = { module = "org.apache.spark:spark-connect-client-jvm_2.13", version.ref = "spark" }
@@ -30,3 +31,4 @@ kotlin-jvm           = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin"
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 shadow               = { id = "com.gradleup.shadow", version.ref = "shadow" }
 detekt               = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+ktlint               = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint-gradle" }

@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.shadow)
     alias(libs.plugins.detekt)
+    alias(libs.plugins.ktlint)
 }
 
 version = "1.0"
