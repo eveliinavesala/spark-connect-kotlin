@@ -91,7 +91,7 @@ internal fun inferSparkType(descriptor: SerialDescriptor, isNullable: Boolean): 
         PrimitiveKind.LONG -> DataTypes.LongType
         PrimitiveKind.FLOAT -> DataTypes.FloatType
         PrimitiveKind.DOUBLE -> DataTypes.DoubleType
-        PrimitiveKind.STRING -> when (descriptor.serialName) {
+        PrimitiveKind.STRING -> when (descriptor.serialName.removeSuffix("?")) {
             "kotlinx.datetime.LocalDate" -> DataTypes.DateType
             "kotlinx.datetime.Instant" -> DataTypes.TimestampType
             else -> DataTypes.StringType
@@ -118,8 +118,7 @@ internal fun inferSparkType(descriptor: SerialDescriptor, isNullable: Boolean): 
 
         // Complex types
         StructureKind.CLASS -> {
-            // Handle special types
-            when (descriptor.serialName) {
+            when (descriptor.serialName.removeSuffix("?")) {
                 "kotlinx.datetime.LocalDate" -> DataTypes.DateType
                 "kotlinx.datetime.Instant" -> DataTypes.TimestampType
                 else -> inferSparkSchema(descriptor)
