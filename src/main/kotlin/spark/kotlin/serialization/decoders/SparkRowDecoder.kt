@@ -79,14 +79,20 @@ internal class SparkRowDecoder(
         return CompositeDecoder.DECODE_DONE
     }
 
-    // Primitive type decoding — all use resolvedColumnIndex (name-resolved, not positional)
+    // Primitive type decoding — all use resolvedColumnIndex (name-resolved, not positional).
+    //
+    // decodeDouble / decodeFloat / decodeInt / decodeLong use row.get() + explicit cast rather
+    // than row.getDouble() / row.getFloat() / etc., because Spark SQL infers numeric literals
+    // (e.g. 19.99, 1000) as DecimalType, and Scala's unboxer throws ClassCastException when
+    // asked to unbox a java.math.BigDecimal as a primitive Double/Float/Int/Long.
+    // row.get() returns the raw JVM value; casting via Number.toXxx() handles all numeric types.
     override fun decodeBoolean(): Boolean = row.getBoolean(resolvedColumnIndex)
     override fun decodeByte(): Byte = row.getByte(resolvedColumnIndex)
     override fun decodeShort(): Short = row.getShort(resolvedColumnIndex)
-    override fun decodeInt(): Int = row.getInt(resolvedColumnIndex)
-    override fun decodeLong(): Long = row.getLong(resolvedColumnIndex)
-    override fun decodeFloat(): Float = row.getFloat(resolvedColumnIndex)
-    override fun decodeDouble(): Double = row.getDouble(resolvedColumnIndex)
+    override fun decodeInt(): Int = (row.get(resolvedColumnIndex) as? Number)?.toInt() ?: row.getInt(resolvedColumnIndex)
+    override fun decodeLong(): Long = (row.get(resolvedColumnIndex) as? Number)?.toLong() ?: row.getLong(resolvedColumnIndex)
+    override fun decodeFloat(): Float = (row.get(resolvedColumnIndex) as? Number)?.toFloat() ?: row.getFloat(resolvedColumnIndex)
+    override fun decodeDouble(): Double = (row.get(resolvedColumnIndex) as? Number)?.toDouble() ?: row.getDouble(resolvedColumnIndex)
     override fun decodeChar(): Char = row.getString(resolvedColumnIndex).first()
     override fun decodeString(): String = row.getString(resolvedColumnIndex)
 
@@ -133,7 +139,7 @@ internal class SparkRowDecoder(
         }
     }
 
-    // Handle special types (DateTime)
+    // Date and time type decoding
     @Suppress("UNCHECKED_CAST")
     override fun <T> decodeSerializableValue(deserializer: DeserializationStrategy<T>): T {
         return when (deserializer.descriptor.serialName) {
