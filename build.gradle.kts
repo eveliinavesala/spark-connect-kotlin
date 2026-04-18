@@ -75,6 +75,11 @@ tasks.register<Test>("demoTest") {
     System.getenv("DOCKER_HOST")?.let {
         environment("DOCKER_HOST", it)
     }
+    // When the UC stack is already running (make uc-up), pass UC_EXTERNAL=true so
+    // UnityCatalogTestBase connects to it directly instead of starting a second compose stack.
+    System.getenv("UC_EXTERNAL")?.let {
+        environment("UC_EXTERNAL", it)
+    }
     jvmArgs(
         "--add-opens=java.base/java.nio=ALL-UNNAMED",
         "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
@@ -151,6 +156,12 @@ tasks.register<Test>("benchmark") {
     useJUnitPlatform {
         includeTags("benchmark")
     }
+    // All benchmark tests share one SparkContainerManager singleton.
+    // maxParallelForks = 1 ensures a single JVM process; forkEvery = 0 prevents
+    // Gradle from forking a new JVM between test classes, which would create a
+    // second SparkContainerManager instance and a second Spark container.
+    maxParallelForks = 1
+    setForkEvery(0)
     System.getenv("DOCKER_HOST")?.let {
         environment("DOCKER_HOST", it)
     }
