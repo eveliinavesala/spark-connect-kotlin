@@ -8,7 +8,7 @@ commons-compress    = "1.27.0"
 testcontainers      = "1.21.4"
 junit-jupiter       = "6.0.3"
 shadow              = "9.2.0"
-delta-lake          = "3.2.0"
+delta-lake          = "4.0.0"
 
 [libraries]
 spark-connect-client         = { module = "org.apache.spark:spark-connect-client-jvm_2.13", version.ref = "spark" }
