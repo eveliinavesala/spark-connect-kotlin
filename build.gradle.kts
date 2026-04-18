@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.shadow)
+    alias(libs.plugins.detekt)
 }
 
 version = "1.0"
@@ -177,4 +178,18 @@ tasks.register<Test>("benchmark") {
 
 kotlin {
     jvmToolchain(21)
+}
+
+// ----------------------------------------------------------------------------
+// Detekt static analysis
+// ----------------------------------------------------------------------------
+detekt {
+    buildUponDefaultConfig = true
+    allRules = false
+    config.setFrom("$projectDir/config/detekt/detekt.yml")
+    baseline = file("$projectDir/config/detekt/baseline.xml")
+}
+
+dependencies {
+    detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.8")
 }

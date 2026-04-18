@@ -1,0 +1,60 @@
+build:
+  maxIssues: 0
+
+complexity:
+  active: true
+  ComplexMethod:
+    active: true
+    threshold: 15
+    # Spark integration and serialization dispatch methods are inherently branchy
+    excludes: ['**/test/**', '**/demo/**']
+  LongMethod:
+    active: true
+    threshold: 60
+    excludes: ['**/test/**', '**/demo/**']
+  LongParameterList:
+    active: true
+    threshold: 8
+  TooManyFunctions:
+    active: true
+    thresholdInFiles: 20
+    thresholdInClasses: 20
+    excludes: ['**/test/**', '**/demo/**']
+
+potential-bugs:
+  active: true
+  AvoidReferentialEquality:
+    active: true
+  DontDowncastCollectionTypes:
+    active: true
+  EqualsAlwaysReturnsTrueOrFalse:
+    active: true
+  EqualsWithHashCodeExist:
+    active: true
+  ExplicitGarbageCollectionCall:
+    active: true
+  NullCheckOnMutableProperty:
+    active: true
+  UnreachableCode:
+    active: true
+  UnsafeCallOnNullableType:
+    active: true
+    excludes: ['**/test/**', '**/demo/**']
+  UnsafeCast:
+    active: true
+
+style:
+  active: true
+  MagicNumber:
+    active: true
+    excludes: ['**/test/**', '**/demo/**']
+    ignoreNumbers: ['-1', '0', '1', '2', '10', '100', '1000']
+  UnusedImports:
+    active: true
+  UnusedPrivateMember:
+    active: true
+
+formatting:
+  active: true
+  android: false
+  autoCorrect: false
