@@ -183,7 +183,7 @@ class SchemaGovernanceTest : UnityCatalogTestBase() {
         // Verify 'score' is now nullable in both UC and the Kotlin class
         val scoreCol = ucColumns.find { it["name"] == "score" }
         assertNotNull(scoreCol, "'score' must be registered in UC for V3")
-        assertTrue(scoreCol!!["nullable"] as Boolean,
+        assertTrue(scoreCol["nullable"] as Boolean,
             "'score' must be nullable in UC — matching CustomerV3.score: Int?")
 
         println("V3 migration: score column registered as nullable in Unity Catalog")
@@ -216,7 +216,7 @@ class SchemaGovernanceTest : UnityCatalogTestBase() {
         val ucColumns = UnityCatalogRestClient.getTableColumns(baseUrl, CATALOG, SCHEMA, FINANCIAL_TABLE)
         val amountCol = ucColumns.find { it["name"] == "amount" }
         assertNotNull(amountCol, "'amount' column must be present in UC")
-        assertEquals("DECIMAL", (amountCol!!["type_name"] as String).uppercase(),
+        assertEquals("DECIMAL", (amountCol["type_name"] as String).uppercase(),
             "BigDecimal → DECIMAL in Unity Catalog")
 
         println("BigDecimal registered as DECIMAL — reflection bridges the serialization type gap")
