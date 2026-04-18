@@ -1144,7 +1144,7 @@ class ReflectionCacheTest {
      * Writes performance data to CSV files with metadata headers
      */
     class PerformanceDataWriter(
-        private val outputDir: File = File("test-results/performance")
+        private val outputDir: File = File("test-results/performance-reflect")
     ) {
         
         init {
@@ -1169,13 +1169,9 @@ class ReflectionCacheTest {
             
             val filename = "$testId.csv"
             val file = File(outputDir, filename)
-            val isNewFile = !file.exists()
-            
             file.bufferedWriter().use { writer ->
-                if (isNewFile) {
-                    writeMetadataHeader(writer, metadata)
-                    writeColumnHeaders(writer, dataPoints.first().metrics.keys)
-                }
+                writeMetadataHeader(writer, metadata)
+                writeColumnHeaders(writer, dataPoints.first().metrics.keys)
                 writeDataRows(writer, dataPoints)
             }
             

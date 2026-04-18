@@ -21,7 +21,7 @@ import kotlin.system.measureNanoTime
  * across the three dataset sizes (8k, 50k, 100k) to establish scalability curves.
  *
  * Run: ./gradlew benchmark
- * Results: build/benchmark-results/multi-scale-benchmark-<ts>.csv
+ * Results: test-results/benchmarking-results/multi-scale-benchmark-<ts>.csv
  */
 @Tag("benchmark")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -68,8 +68,27 @@ class MultiScaleBenchmarkTest : SparkTestBase() {
 
     private fun gc() { System.gc(); Thread.sleep(200) }
 
+    // Retries a single Spark Connect call on transient gRPC UNAVAILABLE errors.
+    // The retry attempts are not included in timing — only the successful call is timed.
+    private fun <T> retryOnUnavailable(maxAttempts: Int = 3, block: () -> T): T {
+        var lastException: Exception? = null
+        repeat(maxAttempts) { attempt ->
+            try {
+                return block()
+            } catch (e: Exception) {
+                if ("UNAVAILABLE" in (e.message ?: "") || "Network closed" in (e.message ?: "")) {
+                    lastException = e
+                    Thread.sleep(500L * (attempt + 1))
+                } else {
+                    throw e
+                }
+            }
+        }
+        throw lastException!!
+    }
+
     private fun measure(block: () -> Any?): List<Long> =
-        (1..MEASURE_ROUNDS).map { measureNanoTime { blackhole(block()) } }
+        (1..MEASURE_ROUNDS).map { measureNanoTime { blackhole(retryOnUnavailable { block() }) } }
 
     private fun median(times: List<Long>): Long {
         val s = times.sorted()
@@ -118,7 +137,7 @@ class MultiScaleBenchmarkTest : SparkTestBase() {
             append("└─")
         })
 
-        val outDir = File("build/benchmark-results").also { it.mkdirs() }
+        val outDir = File("test-results/benchmarking-results").also { it.mkdirs() }
         val ts = DateTimeFormatter.ofPattern("yyyyMMdd_HHmm").withZone(ZoneOffset.UTC).format(Instant.now())
         val file = File(outDir, "multi-scale-benchmark-$ts.csv")
         if (!file.exists()) {
@@ -137,7 +156,7 @@ class MultiScaleBenchmarkTest : SparkTestBase() {
         for ((label, csvPath) in DATASETS) {
             val tracks = loadTracks(csvPath)
             println("\n[MultiScale] Loaded ${tracks.size} rows from $csvPath")
-            repeat(WARMUP_ROUNDS) { blackhole(tracks.toDataFrame(spark).toKotlinList<SpotifyTrack>()) }
+            repeat(WARMUP_ROUNDS) { retryOnUnavailable { blackhole(tracks.toDataFrame(spark).toKotlinList<SpotifyTrack>()) } }
             gc()
             val times = measure { tracks.toDataFrame(spark).toKotlinList<SpotifyTrack>() }
             report("round-trip", "reflect", times, tracks.size, label)
@@ -149,7 +168,7 @@ class MultiScaleBenchmarkTest : SparkTestBase() {
         for ((label, csvPath) in DATASETS) {
             val tracks = loadTracks(csvPath)
             println("\n[MultiScale] Loaded ${tracks.size} rows from $csvPath")
-            repeat(WARMUP_ROUNDS) { blackhole(tracks.toSerializableDataFrame(spark).toSerializableKotlinList<SpotifyTrack>()) }
+            repeat(WARMUP_ROUNDS) { retryOnUnavailable { blackhole(tracks.toSerializableDataFrame(spark).toSerializableKotlinList<SpotifyTrack>()) } }
             gc()
             val times = measure { tracks.toSerializableDataFrame(spark).toSerializableKotlinList<SpotifyTrack>() }
             report("round-trip", "serialize", times, tracks.size, label)
@@ -160,8 +179,8 @@ class MultiScaleBenchmarkTest : SparkTestBase() {
     fun `decode-only - reflection - all scales`() {
         for ((label, csvPath) in DATASETS) {
             val tracks = loadTracks(csvPath)
-            val df = tracks.toDataFrame(spark)
-            repeat(WARMUP_ROUNDS) { blackhole(df.toKotlinList<SpotifyTrack>()) }
+            val df = retryOnUnavailable { tracks.toDataFrame(spark) }
+            repeat(WARMUP_ROUNDS) { retryOnUnavailable { blackhole(df.toKotlinList<SpotifyTrack>()) } }
             gc()
             val times = measure { df.toKotlinList<SpotifyTrack>() }
             report("decode-only", "reflect", times, tracks.size, label)
@@ -172,8 +191,8 @@ class MultiScaleBenchmarkTest : SparkTestBase() {
     fun `decode-only - serialization - all scales`() {
         for ((label, csvPath) in DATASETS) {
             val tracks = loadTracks(csvPath)
-            val df = tracks.toSerializableDataFrame(spark)
-            repeat(WARMUP_ROUNDS) { blackhole(df.toSerializableKotlinList<SpotifyTrack>()) }
+            val df = retryOnUnavailable { tracks.toSerializableDataFrame(spark) }
+            repeat(WARMUP_ROUNDS) { retryOnUnavailable { blackhole(df.toSerializableKotlinList<SpotifyTrack>()) } }
             gc()
             val times = measure { df.toSerializableKotlinList<SpotifyTrack>() }
             report("decode-only", "serialize", times, tracks.size, label)
@@ -184,9 +203,9 @@ class MultiScaleBenchmarkTest : SparkTestBase() {
     fun `encode-only - reflection - all scales`() {
         for ((label, csvPath) in DATASETS) {
             val tracks = loadTracks(csvPath)
-            repeat(WARMUP_ROUNDS) { blackhole(tracks.toDataFrame(spark)) }
+            repeat(WARMUP_ROUNDS) { retryOnUnavailable { blackhole(tracks.toDataFrame(spark)) } }
             gc()
-            val times = measure { blackhole(tracks.toDataFrame(spark)) }
+            val times = measure { tracks.toDataFrame(spark) }
             report("encode-only", "reflect", times, tracks.size, label)
         }
     }
@@ -195,9 +214,9 @@ class MultiScaleBenchmarkTest : SparkTestBase() {
     fun `encode-only - serialization - all scales`() {
         for ((label, csvPath) in DATASETS) {
             val tracks = loadTracks(csvPath)
-            repeat(WARMUP_ROUNDS) { blackhole(tracks.toSerializableDataFrame(spark)) }
+            repeat(WARMUP_ROUNDS) { retryOnUnavailable { blackhole(tracks.toSerializableDataFrame(spark)) } }
             gc()
-            val times = measure { blackhole(tracks.toSerializableDataFrame(spark)) }
+            val times = measure { tracks.toSerializableDataFrame(spark) }
             report("encode-only", "serialize", times, tracks.size, label)
         }
     }

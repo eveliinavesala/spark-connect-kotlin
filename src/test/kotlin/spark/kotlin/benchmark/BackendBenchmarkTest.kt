@@ -11,6 +11,7 @@ import org.junit.jupiter.api.TestInstance
 import spark.kotlin.reflect.getSparkSchema
 import spark.kotlin.reflect.toDataFrame
 import spark.kotlin.reflect.toKotlinList
+import spark.kotlin.serialization.SerializationCache
 import spark.kotlin.serialization.inferSparkSchema
 import spark.kotlin.serialization.toSerializableDataFrame
 import spark.kotlin.serialization.toSerializableKotlinList
@@ -121,14 +122,14 @@ class BackendBenchmarkTest : SparkTestBase() {
 
     @Test
     fun `round-trip throughput - reflection backend`() {
-        warmupReflect()
+        warmupReflectSafe()
         val times = measure { tracks.toDataFrame(spark).toKotlinList<SpotifyTrack>() }
         report("round-trip", "reflect", times)
     }
 
     @Test
     fun `round-trip throughput - serialization backend`() {
-        warmupSerialize()
+        warmupSerializeSafe()
         val times = measure { tracks.toSerializableDataFrame(spark).toSerializableKotlinList<SpotifyTrack>() }
         report("round-trip", "serialize", times)
     }
@@ -161,14 +162,14 @@ class BackendBenchmarkTest : SparkTestBase() {
 
     @Test
     fun `encode-only throughput - reflection backend`() {
-        warmupReflect()
+        warmupReflectSafe()
         val times = measure { blackhole(tracks.toDataFrame(spark)) }
         report("encode-only", "reflect", times)
     }
 
     @Test
     fun `encode-only throughput - serialization backend`() {
-        warmupSerialize()
+        warmupSerializeSafe()
         val times = measure { blackhole(tracks.toSerializableDataFrame(spark)) }
         report("encode-only", "serialize", times)
     }
@@ -176,7 +177,7 @@ class BackendBenchmarkTest : SparkTestBase() {
     @Test
     fun `decode-only throughput - reflection backend`() {
         val df = tracks.toDataFrame(spark)
-        warmupReflect()
+        warmupReflectSafe()
         val times = measure { df.toKotlinList<SpotifyTrack>() }
         report("decode-only", "reflect", times)
     }
@@ -184,7 +185,7 @@ class BackendBenchmarkTest : SparkTestBase() {
     @Test
     fun `decode-only throughput - serialization backend`() {
         val df = tracks.toSerializableDataFrame(spark)
-        warmupSerialize()
+        warmupSerializeSafe()
         val times = measure { df.toSerializableKotlinList<SpotifyTrack>() }
         report("decode-only", "serialize", times)
     }
@@ -192,7 +193,7 @@ class BackendBenchmarkTest : SparkTestBase() {
     @Test
     fun `hardcoded schema - reflection backend`() {
         val schema = getSparkSchema(typeOf<SpotifyTrack>())
-        warmupReflect()
+        warmupReflectSafe()
         val times = measure { tracks.toDataFrame(spark, schema).toKotlinList<SpotifyTrack>() }
         report("hardcoded-schema round-trip", "reflect+schema", times)
     }
@@ -200,7 +201,7 @@ class BackendBenchmarkTest : SparkTestBase() {
     @Test
     fun `hardcoded schema - serialization backend`() {
         val schema = inferSparkSchema(serializer<SpotifyTrack>().descriptor)
-        warmupSerialize()
+        warmupSerializeSafe()
         val times = measure { tracks.toSerializableDataFrame(spark, schema).toSerializableKotlinList<SpotifyTrack>() }
         report("hardcoded-schema round-trip", "serialize+schema", times)
     }
@@ -236,14 +237,12 @@ class BackendBenchmarkTest : SparkTestBase() {
 
     @Test
     fun `schema inference cost - serialization`() {
-        // inferSparkSchema always recomputes (no internal cache) — measures raw descriptor walk cost.
-        // This is the cold-path cost paid on every call without the SerializationCache wrapper.
+        // inferSparkSchema always recomputes — measures raw descriptor walk cost without the cache.
         val descriptor = serializer<SpotifyTrack>().descriptor
 
         // Warmup JIT
         repeat(SCHEMA_WARMUP) { blackhole(inferSparkSchema(descriptor)) }
 
-        // Measure recompute cost (simulates cold — descriptor walk is not cached here)
         val recomputeTimes = (1..SCHEMA_MEASURE).map { measureNanoTime { blackhole(inferSparkSchema(descriptor)) } }
 
         println(buildString {
@@ -253,6 +252,33 @@ class BackendBenchmarkTest : SparkTestBase() {
             append("└─")
         })
         appendCsv("schema-recompute", "serialize", recomputeTimes, 1)
+    }
+
+    @Test
+    fun `schema inference cost - serialization cache`() {
+        // SerializationCache.getSchema() is the call path used by toSerializableDataFrame.
+        // Clears the cache to get a true cold measurement; other tests that run after this
+        // will repopulate the cache on their first warmup round.
+        val ser = serializer<SpotifyTrack>()
+
+        SerializationCache.clearAll()
+        val coldTime = measureNanoTime { blackhole(SerializationCache.getSchema(ser)) }
+
+        // Warmup JIT on the cache-hit path
+        repeat(SCHEMA_WARMUP) { blackhole(SerializationCache.getSchema(ser)) }
+
+        val warmTimes = (1..SCHEMA_MEASURE).map { measureNanoTime { blackhole(SerializationCache.getSchema(ser)) } }
+        val warmMedian = median(warmTimes)
+
+        println(buildString {
+            appendLine("\n┌─ Schema inference — serialize (SerializationCache)")
+            appendLine("│  cold (cache miss, first call): ${coldTime / 1_000}µs")
+            appendLine("│  warm (cache hit, median of $SCHEMA_MEASURE): ${warmMedian}ns")
+            appendLine("│  speedup: ${coldTime / warmMedian.coerceAtLeast(1)}x")
+            append("└─")
+        })
+        appendCsv("schema-cold", "serialize", listOf(coldTime), 1)
+        appendCsv("schema-warm", "serialize", warmTimes, 1)
     }
 
     // ── Infrastructure ────────────────────────────────────────────────────────
@@ -275,8 +301,38 @@ class BackendBenchmarkTest : SparkTestBase() {
         Thread.sleep(200)
     }
 
+    // Retries a single Spark Connect call on transient gRPC UNAVAILABLE errors
+    // (connection closed mid-stream). The retry attempts are not included in any
+    // timing measurement — only the successful call is timed.
+    private fun <T> retryOnUnavailable(maxAttempts: Int = 3, block: () -> T): T {
+        var lastException: Exception? = null
+        repeat(maxAttempts) { attempt ->
+            try {
+                return block()
+            } catch (e: Exception) {
+                if ("UNAVAILABLE" in (e.message ?: "") || "Network closed" in (e.message ?: "")) {
+                    lastException = e
+                    Thread.sleep(500L * (attempt + 1))
+                } else {
+                    throw e
+                }
+            }
+        }
+        throw lastException!!
+    }
+
     private fun measure(block: () -> Any?): List<Long> {
-        return (1..MEASURE_ROUNDS).map { measureNanoTime { blackhole(block()) } }
+        return (1..MEASURE_ROUNDS).map { measureNanoTime { blackhole(retryOnUnavailable { block() }) } }
+    }
+
+    private fun warmupReflectSafe() {
+        repeat(WARMUP_ROUNDS) { retryOnUnavailable { blackhole(tracks.toDataFrame(spark).toKotlinList<SpotifyTrack>()) } }
+        gc()
+    }
+
+    private fun warmupSerializeSafe() {
+        repeat(WARMUP_ROUNDS) { retryOnUnavailable { blackhole(tracks.toSerializableDataFrame(spark).toSerializableKotlinList<SpotifyTrack>()) } }
+        gc()
     }
 
     private fun median(times: List<Long>): Long {
@@ -305,7 +361,7 @@ class BackendBenchmarkTest : SparkTestBase() {
     }
 
     private fun appendCsv(workload: String, backend: String, timesNs: List<Long>, n: Int) {
-        val outDir = File("build/benchmark-results").also { it.mkdirs() }
+        val outDir = File("test-results/benchmarking-results").also { it.mkdirs() }
         val ts = DateTimeFormatter.ofPattern("yyyyMMdd_HHmm").withZone(ZoneOffset.UTC).format(Instant.now())
         val file = File(outDir, "backend-benchmark-$ts.csv")
         if (!file.exists()) {
