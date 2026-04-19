@@ -1,5 +1,5 @@
 [versions]
-kotlin = "2.3.0"
+kotlin = "2.3.20"
 spark = "4.0.0"
 kotlinx-datetime = "0.6.0"
 kotlinx-serialization = "1.10.0"
