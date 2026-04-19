@@ -11,10 +11,10 @@
 # Pass Threshold: HashMap growth < 3.0x, ArrayList growth > 2.0x
 #
 test_name,test_id,execution_id,execution_date,execution_time,sample_size,run_number,time_ns,warmup_iterations,jvm_version,jvm_vendor,os_name,os_version,os_arch,cpu_cores,max_memory_mb,total_memory_mb,free_memory_mb,kotlin_version,gradle_version,test_result,test_status,failure_reason,test1_data_structure,test1_expected_complexity
-test1_measurement_validation,test1,exec_3519691e0e85,2026-04-19,12:34:57.768,10000,1,57,0,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,97,2.3.0,8.14.3,PASSED,completed,,HashMap,O(1),
-test1_measurement_validation,test1,exec_3519691e0e85,2026-04-19,12:34:57.771,50000,1,126,0,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,96,2.3.0,8.14.3,PASSED,completed,,HashMap,O(1),
-test1_measurement_validation,test1,exec_3519691e0e85,2026-04-19,12:34:57.786,100000,1,15,0,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,94,2.3.0,8.14.3,PASSED,completed,,HashMap,O(1),
-test1_measurement_validation,test1,exec_3519691e0e85,2026-04-19,12:34:57.805,10000,1,46890,0,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,83,2.3.0,8.14.3,PASSED,completed,,ArrayList,O(n),
-test1_measurement_validation,test1,exec_3519691e0e85,2026-04-19,12:34:57.855,50000,1,187675,0,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,83,2.3.0,8.14.3,PASSED,completed,,ArrayList,O(n),
-test1_measurement_validation,test1,exec_3519691e0e85,2026-04-19,12:34:58.045,100000,1,375861,0,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,81,2.3.0,8.14.3,PASSED,completed,,ArrayList,O(n),
-test1_measurement_validation,test1,exec_3519691e0e85,2026-04-19,12:34:58.434,10000,1,145,10000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,78,2.3.0,8.14.3,PASSED,completed,,SerializationCache,O(1),N/A
+test1_measurement_validation,test1,exec_91da55269df7,2026-04-19,15:54:09.911,10000,1,63,0,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,144,104,2.3.0,8.14.3,PASSED,completed,,HashMap,O(1),
+test1_measurement_validation,test1,exec_91da55269df7,2026-04-19,15:54:09.915,50000,1,54,0,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,144,103,2.3.0,8.14.3,PASSED,completed,,HashMap,O(1),
+test1_measurement_validation,test1,exec_91da55269df7,2026-04-19,15:54:09.937,100000,1,58,0,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,144,101,2.3.0,8.14.3,PASSED,completed,,HashMap,O(1),
+test1_measurement_validation,test1,exec_91da55269df7,2026-04-19,15:54:09.956,10000,1,43412,0,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,144,91,2.3.0,8.14.3,PASSED,completed,,ArrayList,O(n),
+test1_measurement_validation,test1,exec_91da55269df7,2026-04-19,15:54:10.001,50000,1,185500,0,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,144,90,2.3.0,8.14.3,PASSED,completed,,ArrayList,O(n),
+test1_measurement_validation,test1,exec_91da55269df7,2026-04-19,15:54:10.188,100000,1,366194,0,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,144,88,2.3.0,8.14.3,PASSED,completed,,ArrayList,O(n),
+test1_measurement_validation,test1,exec_91da55269df7,2026-04-19,15:54:10.561,10000,1,143,10000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,144,85,2.3.0,8.14.3,PASSED,completed,,SerializationCache,O(1),N/A
