@@ -8,7 +8,7 @@ commons-compress = "1.27.0"
 testcontainers = "1.21.4"
 junit-jupiter = "6.0.3"
 shadow = "9.2.0"
-delta-lake = "4.0.0"
+delta-lake = "4.2.0"
 detekt = "1.23.8"
 ktlint-gradle = "14.2.0"
 
