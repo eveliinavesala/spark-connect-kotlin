@@ -1,0 +1,8 @@
+timestamp,backend,workload,n_rows,warmup_rounds,measure_rounds,median_ms,min_ms,max_ms,rows_per_sec_median
+20260411_0956,serialize,encode-only,8582,5,10,34.9,28.5,51.6,246017
+20260411_0956,serialize,schema-recompute,1,5,10,0.0,0.0,0.0,1338688
+20260411_0956,reflect,decode-only,8582,5,10,272.4,208.5,601.0,31509
+20260411_0956,reflect+schema,hardcoded-schema round-trip,8582,5,10,328.8,274.7,373.6,26102
+20260411_0956,reflect,encode-only,8582,5,10,41.5,32.9,70.5,206706
+20260411_0956,reflect,schema-cold,1,5,10,0.0,0.0,0.0,146348
+20260411_0956,reflect,schema-warm,1,5,10,0.0,0.0,0.0,12500000

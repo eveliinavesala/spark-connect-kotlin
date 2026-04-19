@@ -12,7 +12,6 @@ import org.junit.jupiter.api.AfterAll
  * For Unity Catalog integration tests, see [UnityCatalogTestBase].
  */
 abstract class SparkTestBase {
-
     protected val spark: SparkSession
         get() = SparkContainerManager.sparkSession
 

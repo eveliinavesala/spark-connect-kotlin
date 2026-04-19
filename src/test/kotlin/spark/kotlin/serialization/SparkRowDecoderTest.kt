@@ -2,8 +2,9 @@ package spark.kotlin.serialization
 
 import kotlinx.serialization.serializer
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
-import org.junit.jupiter.api.Assertions
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import scala.jdk.javaapi.CollectionConverters
 
@@ -13,7 +14,6 @@ import scala.jdk.javaapi.CollectionConverters
  * Tests the decoding of Spark Rows to Kotlin objects.
  */
 class SparkRowDecoderTest {
-
     @Test
     fun `test decode simple data class`() {
         val serializer = serializer<SimplePerson>()
@@ -33,20 +33,21 @@ class SparkRowDecoderTest {
         val serializer = serializer<PrimitiveTypes>()
         val schema = inferSparkSchema(serializer.descriptor)
 
-        val row = GenericRowWithSchema(
-            arrayOf<Any?>(
-                true,
-                42.toByte(),
-                1000.toShort(),
-                100000,
-                10000000000L,
-                3.14f,
-                2.718,
-                "test",
-                "X"
-            ),
-            schema
-        )
+        val row =
+            GenericRowWithSchema(
+                arrayOf<Any?>(
+                    true,
+                    42.toByte(),
+                    1000.toShort(),
+                    100000,
+                    10000000000L,
+                    3.14f,
+                    2.718,
+                    "test",
+                    "X",
+                ),
+                schema,
+            )
 
         val sparkDeserializer = SparkDeserializer(serializer)
         val result = sparkDeserializer.deserialize(row)
@@ -88,7 +89,7 @@ class SparkRowDecoderTest {
         val result = sparkDeserializer.deserialize(row)
 
         assertEquals("Bob", result.name)
-        Assertions.assertEquals(25, result.age)
+        assertEquals(25, result.age)
         assertEquals("bob@example.com", result.email)
     }
 
@@ -97,10 +98,11 @@ class SparkRowDecoderTest {
         // First create the address schema and row
         val addressSerializer = serializer<Address>()
         val addressSchema = inferSparkSchema(addressSerializer.descriptor)
-        val addressRow = GenericRowWithSchema(
-            arrayOf<Any?>("123 Main St", "Springfield", "12345"),
-            addressSchema
-        )
+        val addressRow =
+            GenericRowWithSchema(
+                arrayOf<Any?>("123 Main St", "Springfield", "12345"),
+                addressSchema,
+            )
 
         // Now create the person with address
         val serializer = serializer<PersonWithAddress>()
@@ -205,10 +207,11 @@ class SparkRowDecoderTest {
 
         // Flat union schema: [_type, name, canFly, color, breed]
         // Dog only sets name and breed; canFly and color are null
-        val row = GenericRowWithSchema(
-            arrayOf<Any?>("spark.kotlin.serialization.Dog", "Buddy", null, null, "Golden Retriever"),
-            schema
-        )
+        val row =
+            GenericRowWithSchema(
+                arrayOf<Any?>("spark.kotlin.serialization.Dog", "Buddy", null, null, "Golden Retriever"),
+                schema,
+            )
 
         val sparkDeserializer = SparkDeserializer(serializer)
         val result = sparkDeserializer.deserialize(row)
@@ -240,21 +243,22 @@ class SparkRowDecoderTest {
         assertEquals("tag1", result.tags[0])
 
         assertEquals(2, result.scores.size)
-        Assertions.assertEquals(95, result.scores["math"])
-        Assertions.assertEquals(88, result.scores["science"])
+        assertEquals(95, result.scores["math"])
+        assertEquals(88, result.scores["science"])
 
         assertEquals(5, result.numbers.size)
-        Assertions.assertEquals(1, result.numbers[0])
-        Assertions.assertEquals(5, result.numbers[4])
+        assertEquals(1, result.numbers[0])
+        assertEquals(5, result.numbers[4])
     }
 
     @Test
     fun `test round-trip encoding and decoding`() {
-        val original = PersonWithAddress(
-            name = "Charlie",
-            age = 35,
-            address = Address("789 Elm St", "Boston", "02101")
-        )
+        val original =
+            PersonWithAddress(
+                name = "Charlie",
+                age = 35,
+                address = Address("789 Elm St", "Boston", "02101"),
+            )
 
         val serializer = serializer<PersonWithAddress>()
         val schema = inferSparkSchema(serializer.descriptor)
@@ -278,10 +282,11 @@ class SparkRowDecoderTest {
 
         // Flat union schema: [_type(0), name(1), canFly(2), color(3), breed(4)]
         // Bird sets name and canFly; color and breed are null
-        val row = GenericRowWithSchema(
-            arrayOf<Any?>("spark.kotlin.serialization.Bird", "Tweety", true, null, null),
-            schema
-        )
+        val row =
+            GenericRowWithSchema(
+                arrayOf<Any?>("spark.kotlin.serialization.Bird", "Tweety", true, null, null),
+                schema,
+            )
 
         val result = SparkDeserializer(serializer).deserialize(row)
 
@@ -297,9 +302,21 @@ class SparkRowDecoderTest {
         val animalSchema = inferSparkSchema(animalSerializer.descriptor)
 
         // Flat union schema: [_type(0), name(1), canFly(2), color(3), breed(4)]
-        val dogRow  = GenericRowWithSchema(arrayOf<Any?>("spark.kotlin.serialization.Dog",  "Buddy",   null, null,    "Labrador"), animalSchema)
-        val catRow  = GenericRowWithSchema(arrayOf<Any?>("spark.kotlin.serialization.Cat",  "Whiskers", null, "Black", null),       animalSchema)
-        val birdRow = GenericRowWithSchema(arrayOf<Any?>("spark.kotlin.serialization.Bird", "Tweety",  true, null,    null),        animalSchema)
+        val dogRow =
+            GenericRowWithSchema(
+                arrayOf<Any?>("spark.kotlin.serialization.Dog", "Buddy", null, null, "Labrador"),
+                animalSchema,
+            )
+        val catRow =
+            GenericRowWithSchema(
+                arrayOf<Any?>("spark.kotlin.serialization.Cat", "Whiskers", null, "Black", null),
+                animalSchema,
+            )
+        val birdRow =
+            GenericRowWithSchema(
+                arrayOf<Any?>("spark.kotlin.serialization.Bird", "Tweety", true, null, null),
+                animalSchema,
+            )
 
         val scalaAnimals = CollectionConverters.asScala(listOf<Any?>(dogRow, catRow, birdRow)).toSeq()
 
@@ -311,23 +328,31 @@ class SparkRowDecoderTest {
 
         assertEquals("Central Park", result.location)
         assertEquals(3, result.animals.size)
-        assertTrue(result.animals[0] is Dog);    assertEquals("Buddy",    result.animals[0].name); assertEquals("Labrador", (result.animals[0] as Dog).breed)
-        assertTrue(result.animals[1] is Cat);    assertEquals("Whiskers", result.animals[1].name); assertEquals("Black",    (result.animals[1] as Cat).color)
-        assertTrue(result.animals[2] is Bird);   assertEquals("Tweety",   result.animals[2].name); assertEquals(true,       (result.animals[2] as Bird).canFly)
+        assertTrue(result.animals[0] is Dog)
+        assertEquals("Buddy", result.animals[0].name)
+        assertEquals("Labrador", (result.animals[0] as Dog).breed)
+        assertTrue(result.animals[1] is Cat)
+        assertEquals("Whiskers", result.animals[1].name)
+        assertEquals("Black", (result.animals[1] as Cat).color)
+        assertTrue(result.animals[2] is Bird)
+        assertEquals("Tweety", result.animals[2].name)
+        assertEquals(true, (result.animals[2] as Bird).canFly)
     }
 
     @Test
     fun `test round-trip ComplexData with sealed list containing integer fields`() {
         // ComplexData has List<DataItem> where DataItem subtypes have id: Int — the field type
         // the original encoder silently dropped (no encodeInt override in SparkSealedSubtypeEncoder)
-        val original = ComplexData(
-            id = "report-1",
-            metadata = mapOf("source" to "unit-test", "version" to "2"),
-            items = listOf(
-                TextItem(1, "hello world"),
-                NumberItem(2, 3.14)
+        val original =
+            ComplexData(
+                id = "report-1",
+                metadata = mapOf("source" to "unit-test", "version" to "2"),
+                items =
+                    listOf(
+                        TextItem(1, "hello world"),
+                        NumberItem(2, 3.14),
+                    ),
             )
-        )
 
         val serializer = serializer<ComplexData>()
         val schema = inferSparkSchema(serializer.descriptor)
@@ -340,11 +365,12 @@ class SparkRowDecoderTest {
 
     @Test
     fun `test round-trip with collections`() {
-        val original = CollectionTypes(
-            tags = listOf("kotlin", "spark", "serialization"),
-            scores = mapOf("performance" to 100, "reliability" to 95),
-            numbers = listOf(10, 20, 30)
-        )
+        val original =
+            CollectionTypes(
+                tags = listOf("kotlin", "spark", "serialization"),
+                scores = mapOf("performance" to 100, "reliability" to 95),
+                numbers = listOf(10, 20, 30),
+            )
 
         val serializer = serializer<CollectionTypes>()
         val schema = inferSparkSchema(serializer.descriptor)

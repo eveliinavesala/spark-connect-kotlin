@@ -4,16 +4,19 @@ import classes.SparkTestBase
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.DataTypes
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertDoesNotThrow
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import spark.kotlin.reflect.toDataFrame
 import java.util.Arrays
 import java.util.stream.Collectors
 
 class DataFrameMetadataTest : SparkTestBase() {
-
-    data class Person(var name: String = "", var age: Int = 0)
+    data class Person(
+        var name: String = "",
+        var age: Int = 0,
+    )
 
     private lateinit var df: Dataset<Row>
 
@@ -30,8 +33,10 @@ class DataFrameMetadataTest : SparkTestBase() {
         val schema = df.schema()
 
         assertEquals(2, schema.fields().size)
-        val schemaMap = Arrays.stream(schema.fields())
-            .collect(Collectors.toMap({ f -> f.name() }, { f -> f.dataType() }))
+        val schemaMap =
+            Arrays
+                .stream(schema.fields())
+                .collect(Collectors.toMap({ f -> f.name() }, { f -> f.dataType() }))
 
         assertEquals(DataTypes.StringType, schemaMap["name"])
         assertEquals(DataTypes.IntegerType, schemaMap["age"])
@@ -42,8 +47,10 @@ class DataFrameMetadataTest : SparkTestBase() {
         val dtypes = df.dtypes()
 
         assertEquals(2, dtypes.size)
-        val dtypeMap = Arrays.stream(dtypes)
-            .collect(Collectors.toMap({ t -> t._1() }, { t -> t._2() }))
+        val dtypeMap =
+            Arrays
+                .stream(dtypes)
+                .collect(Collectors.toMap({ t -> t._1() }, { t -> t._2() }))
 
         // Spark Connect returns full type names
         assertEquals("StringType", dtypeMap["name"])

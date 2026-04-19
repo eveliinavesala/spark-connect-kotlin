@@ -43,9 +43,8 @@ internal class SparkRowDecoder(
     override val serializersModule: SerializersModule = EmptySerializersModule(),
     // Pre-built descriptor-index → column-index map. When supplied (batch decode path),
     // buildColumnMap is skipped so the schema scan happens once per batch instead of once per row.
-    preBuiltColumnIndexMap: IntArray? = null
+    preBuiltColumnIndexMap: IntArray? = null,
 ) : AbstractDecoder() {
-
     // Maps descriptor element index → actual column index in the Row.
     // Initialized from preBuiltColumnIndexMap if provided; otherwise built lazily on first
     // decodeElementIndex call. A -1 entry means the column is absent in the Row schema.
@@ -60,9 +59,14 @@ internal class SparkRowDecoder(
     private fun buildColumnMap(descriptor: SerialDescriptor) {
         if (columnIndexMap != null) return
         val schema = row.schema()
-        columnIndexMap = IntArray(descriptor.elementsCount) { i ->
-            try { schema.fieldIndex(descriptor.getElementName(i)) } catch (_: IllegalArgumentException) { -1 }
-        }
+        columnIndexMap =
+            IntArray(descriptor.elementsCount) { i ->
+                try {
+                    schema.fieldIndex(descriptor.getElementName(i))
+                } catch (_: IllegalArgumentException) {
+                    -1
+                }
+            }
     }
 
     override fun decodeElementIndex(descriptor: SerialDescriptor): Int {
@@ -72,7 +76,7 @@ internal class SparkRowDecoder(
             descriptorIndex++
             if (colIdx >= 0) {
                 resolvedColumnIndex = colIdx
-                return descriptorIndex - 1   // descriptor element index (what kotlinx.serialization expects)
+                return descriptorIndex - 1 // descriptor element index (what kotlinx.serialization expects)
             }
             // column absent in this Row — skip (treat as missing/null via decodeNotNullMark)
         }
@@ -87,16 +91,37 @@ internal class SparkRowDecoder(
     // asked to unbox a java.math.BigDecimal as a primitive Double/Float/Int/Long.
     // row.get() returns the raw JVM value; casting via Number.toXxx() handles all numeric types.
     override fun decodeBoolean(): Boolean = row.getBoolean(resolvedColumnIndex)
+
     override fun decodeByte(): Byte = row.getByte(resolvedColumnIndex)
+
     override fun decodeShort(): Short = row.getShort(resolvedColumnIndex)
-    override fun decodeInt(): Int = (row.get(resolvedColumnIndex) as? Number)?.toInt() ?: row.getInt(resolvedColumnIndex)
-    override fun decodeLong(): Long = (row.get(resolvedColumnIndex) as? Number)?.toLong() ?: row.getLong(resolvedColumnIndex)
-    override fun decodeFloat(): Float = (row.get(resolvedColumnIndex) as? Number)?.toFloat() ?: row.getFloat(resolvedColumnIndex)
-    override fun decodeDouble(): Double = (row.get(resolvedColumnIndex) as? Number)?.toDouble() ?: row.getDouble(resolvedColumnIndex)
+
+    override fun decodeInt(): Int {
+        val raw = row.get(resolvedColumnIndex)
+        return (raw as? Number)?.toInt() ?: row.getInt(resolvedColumnIndex)
+    }
+
+    override fun decodeLong(): Long {
+        val raw = row.get(resolvedColumnIndex)
+        return (raw as? Number)?.toLong() ?: row.getLong(resolvedColumnIndex)
+    }
+
+    override fun decodeFloat(): Float {
+        val raw = row.get(resolvedColumnIndex)
+        return (raw as? Number)?.toFloat() ?: row.getFloat(resolvedColumnIndex)
+    }
+
+    override fun decodeDouble(): Double {
+        val raw = row.get(resolvedColumnIndex)
+        return (raw as? Number)?.toDouble() ?: row.getDouble(resolvedColumnIndex)
+    }
+
     override fun decodeChar(): Char = row.getString(resolvedColumnIndex).first()
+
     override fun decodeString(): String = row.getString(resolvedColumnIndex)
 
     override fun decodeNotNullMark(): Boolean = !row.isNullAt(resolvedColumnIndex)
+
     override fun decodeNull(): Nothing? = null
 
     override fun decodeEnum(enumDescriptor: SerialDescriptor): Int {
@@ -107,22 +132,28 @@ internal class SparkRowDecoder(
     }
 
     // Structure decoding - delegate to specialized decoders
-    override fun beginStructure(descriptor: SerialDescriptor): CompositeDecoder {
-        return when (descriptor.kind) {
+    override fun beginStructure(descriptor: SerialDescriptor): CompositeDecoder =
+        when (descriptor.kind) {
             StructureKind.LIST -> {
                 // getList returns a Scala Seq wrapped as Java List - convert to a proper Kotlin list
                 val sparkList = row.getList<Any>(resolvedColumnIndex)
                 val kotlinList = sparkList.toList()
                 SparkListDecoder(kotlinList, serializersModule)
             }
+
             StructureKind.MAP -> {
                 val map = row.getJavaMap<Any, Any>(resolvedColumnIndex)
                 SparkMapDecoder(map, serializersModule)
             }
+
             StructureKind.CLASS -> {
                 when (descriptor.serialName) {
                     "kotlinx.datetime.LocalDate",
-                    "kotlinx.datetime.Instant" -> this
+                    "kotlinx.datetime.Instant",
+                    -> {
+                        this
+                    }
+
                     else -> {
                         // descriptorIndex == 0 means beginStructure was called for the root class
                         // before any element has been visited — decode in place.
@@ -134,24 +165,32 @@ internal class SparkRowDecoder(
                     }
                 }
             }
-            PolymorphicKind.SEALED -> SparkSealedDecoder(row, serializersModule)
-            else -> this
+
+            PolymorphicKind.SEALED -> {
+                SparkSealedDecoder(row, serializersModule)
+            }
+
+            else -> {
+                this
+            }
         }
-    }
 
     // Date and time type decoding
     @Suppress("UNCHECKED_CAST")
-    override fun <T> decodeSerializableValue(deserializer: DeserializationStrategy<T>): T {
-        return when (deserializer.descriptor.serialName) {
+    override fun <T> decodeSerializableValue(deserializer: DeserializationStrategy<T>): T =
+        when (deserializer.descriptor.serialName) {
             "kotlinx.datetime.LocalDate" -> {
                 val date = row.getDate(resolvedColumnIndex)
                 LocalDate.parse(date.toString()) as T
             }
+
             "kotlinx.datetime.Instant" -> {
                 val timestamp = row.getTimestamp(resolvedColumnIndex)
                 timestamp.toInstant().toKotlinInstant() as T
             }
-            else -> super.decodeSerializableValue(deserializer)
+
+            else -> {
+                super.decodeSerializableValue(deserializer)
+            }
         }
-    }
 }

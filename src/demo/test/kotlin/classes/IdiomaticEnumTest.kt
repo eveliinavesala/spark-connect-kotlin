@@ -6,15 +6,18 @@ import spark.kotlin.reflect.toDataFrame
 import spark.kotlin.reflect.toKotlinList
 
 class IdiomaticEnumTest : SparkTestBase() {
-
-    data class EnumData(val key: String, val value: IdiomaticEnum)
+    data class EnumData(
+        val key: String,
+        val value: IdiomaticEnum,
+    )
 
     @Test
     fun `test enum with spark dataframe`() {
-        val data = listOf(
-            Pair("A", IdiomaticEnum.SUCCESS),
-            Pair("B", IdiomaticEnum.ERROR)
-        ).map { (key, value) -> EnumData(key, value) }
+        val data =
+            listOf(
+                Pair("A", IdiomaticEnum.SUCCESS),
+                Pair("B", IdiomaticEnum.ERROR),
+            ).map { (key, value) -> EnumData(key, value) }
 
         val df = data.toDataFrame(spark)
 
@@ -24,10 +27,11 @@ class IdiomaticEnumTest : SparkTestBase() {
 
     @Test
     fun `test enum with spark dataset`() {
-        val data = listOf(
-            Pair("A", IdiomaticEnum.SUCCESS),
-            Pair("B", IdiomaticEnum.ERROR)
-        ).map { (key, value) -> EnumData(key, value) }
+        val data =
+            listOf(
+                Pair("A", IdiomaticEnum.SUCCESS),
+                Pair("B", IdiomaticEnum.ERROR),
+            ).map { (key, value) -> EnumData(key, value) }
 
         val df = data.toDataFrame(spark)
         val results = df.toKotlinList<EnumData>()

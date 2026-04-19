@@ -1,0 +1,63 @@
+# Test: Test 2 - Cache Lookup Stability
+# Description: Verify cache hit time is stable across repeated calls (P90/P10 spread, fixed batch size)
+# Test Class: spark.kotlin.reflect.ReflectionCacheTest
+# Test Method: cache lookup is O(1) with JVM warmup()
+# Warmup Iterations: 300000
+# Sample Sizes: 50
+# Runs Per Sample: 50
+# Blackhole: Enabled
+# GC Before Test: true
+# Post-GC Sleep: 200ms
+# Pass Threshold: P90/P10 < 20x, median < 10µs
+#
+test_name,test_id,execution_id,execution_date,execution_time,sample_size,run_number,time_ns,warmup_iterations,jvm_version,jvm_vendor,os_name,os_version,os_arch,cpu_cores,max_memory_mb,total_memory_mb,free_memory_mb,kotlin_version,gradle_version,test_result,test_status,failure_reason,test2_p10_ns,test2_p50_ns,test2_p50_threshold_ns,test2_p90_ns,test2_p99_ns,test2_spread_p90_p10,test2_spread_threshold
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.732,10000,1,38,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,99,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.733,10000,2,32,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,99,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.733,10000,3,32,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,99,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.734,10000,4,38,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,99,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.734,10000,5,32,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,99,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.735,10000,6,33,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,99,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.735,10000,7,31,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,99,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.736,10000,8,35,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,99,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.736,10000,9,32,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,99,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.737,10000,10,32,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,99,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.737,10000,11,32,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,99,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.737,10000,12,33,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,99,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.738,10000,13,33,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,99,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.738,10000,14,31,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,99,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.739,10000,15,33,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,99,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.739,10000,16,32,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,99,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.740,10000,17,32,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,99,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.740,10000,18,32,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,99,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.740,10000,19,32,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,99,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.741,10000,20,33,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.741,10000,21,32,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.742,10000,22,34,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.742,10000,23,32,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.742,10000,24,32,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.743,10000,25,33,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.743,10000,26,32,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.744,10000,27,35,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.744,10000,28,32,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.744,10000,29,32,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.745,10000,30,33,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.745,10000,31,32,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.746,10000,32,33,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.746,10000,33,32,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.746,10000,34,32,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.747,10000,35,33,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.747,10000,36,15,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.749,10000,37,8,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.749,10000,38,8,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.749,10000,39,9,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.749,10000,40,8,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.749,10000,41,7,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.749,10000,42,8,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.749,10000,43,7,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.750,10000,44,7,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.750,10000,45,7,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.750,10000,46,10,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.750,10000,47,8,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.750,10000,48,7,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.750,10000,49,8,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0
+test2_constant_time_growth,test2,exec_304b52356a9c,2026-04-19,12:34:57.751,10000,50,8,300000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,137,98,2.3.0,8.14.3,PASSED,completed,,8,32,10000,34,38,4.25,20.0

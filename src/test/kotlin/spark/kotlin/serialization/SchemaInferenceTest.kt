@@ -2,8 +2,13 @@ package spark.kotlin.serialization
 
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.serializer
-import org.apache.spark.sql.types.*
-import org.junit.jupiter.api.Assertions.*
+import org.apache.spark.sql.types.ArrayType
+import org.apache.spark.sql.types.DataTypes
+import org.apache.spark.sql.types.MapType
+import org.apache.spark.sql.types.StructType
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 /**
@@ -12,7 +17,6 @@ import org.junit.jupiter.api.Test
  * Tests the conversion of kotlinx.serialization descriptors to Spark schemas.
  */
 class SchemaInferenceTest {
-
     @Test
     fun `test simple data class schema inference`() {
         val serializer = serializer<SimplePerson>()
@@ -70,14 +74,9 @@ class SchemaInferenceTest {
 
         assertEquals(3, schema.fields().size)
 
-        // TODO: Properly detect nullable fields in kotlinx.serialization
-        // Currently, nullable detection is not fully implemented
-        // For now, we just verify the schema is created correctly
+        // Nullable field detection via kotlinx.serialization descriptors is not yet implemented.
+        // Only non-nullable fields are asserted here until that is wired up.
         assertFalse(schema.fields()[0].nullable()) // name is not nullable
-        // Note: nullable fields are marked as nullable in the schema
-        // This will be fixed in a future update
-        // assertTrue(schema.fields()[1].nullable())  // age is nullable
-        // assertTrue(schema.fields()[2].nullable())  // email is nullable
     }
 
     @Test
@@ -225,7 +224,7 @@ class SchemaInferenceTest {
         assertEquals(3, schema.fields().size)
         assertEquals(DataTypes.StringType, schema.fields()[0].dataType()) // title
 
-        assertEquals(DataTypes.DateType, schema.fields()[1].dataType())      // LocalDate -> DateType
+        assertEquals(DataTypes.DateType, schema.fields()[1].dataType()) // LocalDate -> DateType
         assertEquals(DataTypes.TimestampType, schema.fields()[2].dataType()) // Instant -> TimestampType
     }
 }

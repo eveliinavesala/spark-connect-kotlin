@@ -3,8 +3,10 @@ package dataset.java_api;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.junit.jupiter.api.Test;
+
 import java.util.Arrays;
 import java.util.List;
+
 import static org.apache.spark.sql.functions.col;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -51,12 +53,12 @@ public class DatasetTransformationsJavaTest extends JavaSparkTestBase {
     @Test
     public void testDistinctAndDropDuplicates() {
         List<Person> duplicateData = Arrays.asList(
-            new Person("Alice", 30, 1),
-            new Person("Bob", 40, 2),
-            new Person("Alice", 30, 1)
+                new Person("Alice", 30, 1),
+                new Person("Bob", 40, 2),
+                new Person("Alice", 30, 1)
         );
         Dataset<Row> dfWithDupes = spark.createDataFrame(duplicateData, Person.class);
-        
+
         assertEquals(3, dfWithDupes.count());
         assertEquals(2, dfWithDupes.distinct().count());
         assertEquals(2, dfWithDupes.dropDuplicates().count());

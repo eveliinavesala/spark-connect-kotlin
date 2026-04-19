@@ -14,10 +14,15 @@ import spark.kotlin.serialization.toSerializableKotlinList
 
 sealed class RouterResult<T> {
     /** Serialization backend succeeded — fast path, no drift. */
-    data class SerializationSuccess<T>(val data: List<T>) : RouterResult<T>()
+    data class SerializationSuccess<T>(
+        val data: List<T>,
+    ) : RouterResult<T>()
 
     /** Serialization backend detected drift; reflection backend recovered the data. */
-    data class ReflectionFallback<T>(val data: List<T>, val report: SchemaDriftReport) : RouterResult<T>()
+    data class ReflectionFallback<T>(
+        val data: List<T>,
+        val report: SchemaDriftReport,
+    ) : RouterResult<T>()
 
     /**
      * Drift detected and both backends failed to decode (e.g. non-nullable field absent from data).
@@ -26,7 +31,7 @@ sealed class RouterResult<T> {
      */
     data class BothFailed<T>(
         val report: SchemaDriftReport,
-        val reflectionCause: Exception
+        val reflectionCause: Exception,
     ) : RouterResult<T>()
 }
 
@@ -42,7 +47,6 @@ sealed class RouterResult<T> {
  * No library-core changes are needed to use or extend this pattern.
  */
 object BackendRouter {
-
     // ── Encode (List<T> → DataFrame) ──────────────────────────────────────────
 
     /**
@@ -60,7 +64,7 @@ object BackendRouter {
     inline fun <reified T : Any> encode(
         data: List<T>,
         spark: SparkSession,
-        serializer: KSerializer<T>?
+        serializer: KSerializer<T>?,
     ): Pair<Dataset<Row>, SchemaDriftReport?> {
         if (serializer == null) {
             // Type-gap path: serialization not applicable — reflection is the only option
@@ -73,14 +77,15 @@ object BackendRouter {
             val reflectionDf = data.toDataFrame(spark)
             val actualSchema = reflectionDf.schema()
             val diffs = SchemaDriftReport.compare(serializationSchema, actualSchema)
-            val report = SchemaDriftReport(
-                trigger        = SchemaDriftReport.triggerFrom(diffs),
-                typeName       = T::class.simpleName ?: "Unknown",
-                expectedSchema = serializationSchema,
-                actualSchema   = actualSchema,
-                diffs          = diffs,
-                cause          = e
-            )
+            val report =
+                SchemaDriftReport(
+                    trigger = SchemaDriftReport.triggerFrom(diffs),
+                    typeName = T::class.simpleName ?: "Unknown",
+                    expectedSchema = serializationSchema,
+                    actualSchema = actualSchema,
+                    diffs = diffs,
+                    cause = e,
+                )
             println(report.format())
             reflectionDf to report
         }
@@ -103,11 +108,11 @@ object BackendRouter {
      */
     inline fun <reified T : Any> decode(
         df: Dataset<Row>,
-        serializer: KSerializer<T>
+        serializer: KSerializer<T>,
     ): RouterResult<T> {
-        val actualSchema   = df.schema()
+        val actualSchema = df.schema()
         val expectedSchema = schemaFor(serializer)
-        val diffs          = SchemaDriftReport.compare(expectedSchema, actualSchema)
+        val diffs = SchemaDriftReport.compare(expectedSchema, actualSchema)
 
         if (diffs.isEmpty()) {
             // No drift — use fast serialization path
@@ -115,13 +120,14 @@ object BackendRouter {
         }
 
         // Drift detected — generate Immediate Inspection report before touching any row
-        val report = SchemaDriftReport(
-            trigger        = SchemaDriftReport.triggerFrom(diffs),
-            typeName       = T::class.simpleName ?: "Unknown",
-            expectedSchema = expectedSchema,
-            actualSchema   = actualSchema,
-            diffs          = diffs
-        )
+        val report =
+            SchemaDriftReport(
+                trigger = SchemaDriftReport.triggerFrom(diffs),
+                typeName = T::class.simpleName ?: "Unknown",
+                expectedSchema = expectedSchema,
+                actualSchema = actualSchema,
+                diffs = diffs,
+            )
         println(report.format())
 
         // Attempt reflection fallback

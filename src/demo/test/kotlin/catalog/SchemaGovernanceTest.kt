@@ -4,12 +4,28 @@ import catalog.toStructType
 import catalog.toUcColumns
 import classes.UnityCatalogTestBase
 import kotlinx.serialization.serializer
-import org.junit.jupiter.api.*
-import org.junit.jupiter.api.Assertions.*
-import resilience.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.MethodOrderer
+import org.junit.jupiter.api.Order
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.TestMethodOrder
+import resilience.BackendRouter
+import resilience.CustomerV1
+import resilience.CustomerV2
+import resilience.CustomerV3
+import resilience.DriftKind
+import resilience.DriftTrigger
+import resilience.FinancialReport
+import resilience.SchemaDriftReport
 import spark.kotlin.reflect.getSparkSchema
 import spark.kotlin.serialization.schemaFor
-import unity_catalog.UnityCatalogRestClient
+import unitycatalog.UnityCatalogRestClient
 import kotlin.reflect.typeOf
 
 /**
@@ -30,16 +46,15 @@ import kotlin.reflect.typeOf
 @TestMethodOrder(MethodOrderer.OrderAnnotation::class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class SchemaGovernanceTest : UnityCatalogTestBase() {
-
     companion object {
-        private const val CATALOG         = "test_catalog"
-        private const val SCHEMA          = "scd_demo"
-        private const val UC_TABLE        = "customers"
+        private const val CATALOG = "test_catalog"
+        private const val SCHEMA = "scd_demo"
+        private const val UC_TABLE = "customers"
         private const val FINANCIAL_TABLE = "financial_reports"
     }
 
     private val baseUrl: String by lazy {
-        "http://localhost:${UnityCatalogTestBase.getUnityCatalogPort()}"
+        "http://localhost:${getUnityCatalogPort()}"
     }
 
     @BeforeAll
@@ -55,22 +70,23 @@ class SchemaGovernanceTest : UnityCatalogTestBase() {
     @Test
     @Order(1)
     fun `code-to-catalog - register CustomerV1 schema from serialization backend`() {
-        val schema  = schemaFor(serializer<CustomerV1>())
+        val schema = schemaFor(serializer<CustomerV1>())
         val columns = schema.toUcColumns()
 
         println("\n── Registering CustomerV1 schema to Unity Catalog ──")
         println("Schema: ${schema.treeString()}")
         println("UC columns: $columns")
 
-        val registered = UnityCatalogRestClient.createTable(
-            baseUrl          = baseUrl,
-            catalogName      = CATALOG,
-            schemaName       = SCHEMA,
-            tableName        = UC_TABLE,
-            columns          = columns,
-            storageLocation  = "/tmp/uc-demo/$CATALOG/$SCHEMA/$UC_TABLE",
-            dataSourceFormat = "DELTA"
-        )
+        val registered =
+            UnityCatalogRestClient.createTable(
+                baseUrl = baseUrl,
+                catalogName = CATALOG,
+                schemaName = SCHEMA,
+                tableName = UC_TABLE,
+                columns = columns,
+                storageLocation = "/tmp/uc-demo/$CATALOG/$SCHEMA/$UC_TABLE",
+                dataSourceFormat = "DELTA",
+            )
 
         assertTrue(registered, "CustomerV1 schema should register successfully in Unity Catalog")
 
@@ -88,26 +104,27 @@ class SchemaGovernanceTest : UnityCatalogTestBase() {
         assertFalse(ucColumns.isEmpty(), "UC should return column definitions for $UC_TABLE")
 
         val catalogSchema = ucColumns.toStructType()
-        val kotlinSchema  = schemaFor(serializer<CustomerV2>())
+        val kotlinSchema = schemaFor(serializer<CustomerV2>())
 
         println("\n── Catalog-to-Code Drift Detection ──")
         println("UC registered schema: ${catalogSchema.treeString()}")
         println("Current Kotlin model: ${kotlinSchema.treeString()}")
 
         val diffs = SchemaDriftReport.compare(kotlinSchema, catalogSchema)
-        val report = SchemaDriftReport(
-            trigger        = SchemaDriftReport.triggerFrom(diffs),
-            typeName       = "CustomerV2 vs UC registered V1",
-            expectedSchema = kotlinSchema,
-            actualSchema   = catalogSchema,
-            diffs          = diffs
-        )
+        val report =
+            SchemaDriftReport(
+                trigger = SchemaDriftReport.triggerFrom(diffs),
+                typeName = "CustomerV2 vs UC registered V1",
+                expectedSchema = kotlinSchema,
+                actualSchema = catalogSchema,
+                diffs = diffs,
+            )
         println(report.format())
 
         assertTrue(diffs.isNotEmpty(), "Drift should be detected: UC has V1 schema, Kotlin class is V2")
         assertTrue(
             diffs.any { it.fieldName == "score" && it.kind == DriftKind.FIELD_REMOVED },
-            "Drift report must identify 'score' as absent in the UC-registered schema"
+            "Drift report must identify 'score' as absent in the UC-registered schema",
         )
         assertEquals(DriftTrigger.MISSING_FIELD, report.trigger)
     }
@@ -117,9 +134,9 @@ class SchemaGovernanceTest : UnityCatalogTestBase() {
     @Test
     @Order(3)
     fun `preflight check - CustomerV2 encoding blocked by UC schema comparison`() {
-        val ucColumns     = UnityCatalogRestClient.getTableColumns(baseUrl, CATALOG, SCHEMA, UC_TABLE)
+        val ucColumns = UnityCatalogRestClient.getTableColumns(baseUrl, CATALOG, SCHEMA, UC_TABLE)
         val catalogSchema = ucColumns.toStructType()
-        val kotlinSchema  = schemaFor(serializer<CustomerV2>())
+        val kotlinSchema = schemaFor(serializer<CustomerV2>())
 
         val diffs = SchemaDriftReport.compare(kotlinSchema, catalogSchema)
 
@@ -127,15 +144,17 @@ class SchemaGovernanceTest : UnityCatalogTestBase() {
         if (diffs.isEmpty()) {
             println("Schema is compatible — safe to encode")
         } else {
-            val report = SchemaDriftReport(
-                trigger        = SchemaDriftReport.triggerFrom(diffs),
-                typeName       = "CustomerV2 pre-flight",
-                expectedSchema = kotlinSchema,
-                actualSchema   = catalogSchema,
-                diffs          = diffs
-            )
+            val report =
+                SchemaDriftReport(
+                    trigger = SchemaDriftReport.triggerFrom(diffs),
+                    typeName = "CustomerV2 pre-flight",
+                    expectedSchema = kotlinSchema,
+                    actualSchema = catalogSchema,
+                    diffs = diffs,
+                )
             println(report.format())
-            println("""
+            println(
+                """
                 |── Developer action ─────────────────────────────────────────────────────────
                 |  Pre-flight blocked CustomerV2 → UC table '$UC_TABLE'.
                 |  Options:
@@ -143,11 +162,14 @@ class SchemaGovernanceTest : UnityCatalogTestBase() {
                 |    b) Roll back to CustomerV1 for this table
                 |    c) Register a new versioned table for the V2 contract
                 |──────────────────────────────────────────────────────────────────────────────
-            """.trimMargin())
+                """.trimMargin(),
+            )
         }
 
-        assertTrue(diffs.any { it.fieldName == "score" },
-            "Pre-flight must flag 'score' mismatch before encoding starts")
+        assertTrue(
+            diffs.any { it.fieldName == "score" },
+            "Pre-flight must flag 'score' mismatch before encoding starts",
+        )
     }
 
     // ── 4. Safe migration: register V3 schema as a new versioned table ────────
@@ -155,22 +177,23 @@ class SchemaGovernanceTest : UnityCatalogTestBase() {
     @Test
     @Order(4)
     fun `safe migration - CustomerV3 schema registered as versioned table in UC`() {
-        val v3Schema  = schemaFor(serializer<CustomerV3>())
-        val columns   = v3Schema.toUcColumns()
-        val v3Table   = "customers_v3"
+        val v3Schema = schemaFor(serializer<CustomerV3>())
+        val columns = v3Schema.toUcColumns()
+        val v3Table = "customers_v3"
 
-        val registered = UnityCatalogRestClient.createTable(
-            baseUrl          = baseUrl,
-            catalogName      = CATALOG,
-            schemaName       = SCHEMA,
-            tableName        = v3Table,
-            columns          = columns,
-            storageLocation  = "/tmp/uc-demo/$CATALOG/$SCHEMA/$v3Table",
-            dataSourceFormat = "DELTA"
-        )
+        val registered =
+            UnityCatalogRestClient.createTable(
+                baseUrl = baseUrl,
+                catalogName = CATALOG,
+                schemaName = SCHEMA,
+                tableName = v3Table,
+                columns = columns,
+                storageLocation = "/tmp/uc-demo/$CATALOG/$SCHEMA/$v3Table",
+                dataSourceFormat = "DELTA",
+            )
         assertTrue(registered, "CustomerV3 schema should register successfully")
 
-        val ucColumns     = UnityCatalogRestClient.getTableColumns(baseUrl, CATALOG, SCHEMA, v3Table)
+        val ucColumns = UnityCatalogRestClient.getTableColumns(baseUrl, CATALOG, SCHEMA, v3Table)
         val catalogSchema = ucColumns.toStructType()
 
         println("\n── V3 Schema registered in Unity Catalog ──")
@@ -181,10 +204,12 @@ class SchemaGovernanceTest : UnityCatalogTestBase() {
         assertEquals(v3FieldNames, ucFieldNames, "UC schema must cover all V3 fields")
 
         // Verify 'score' is now nullable in both UC and the Kotlin class
-        val scoreCol = ucColumns.find { it["name"] == "score" }
+        val scoreCol = ucColumns.find { it["name"] == "score" }!!
         assertNotNull(scoreCol, "'score' must be registered in UC for V3")
-        assertTrue(scoreCol["nullable"] as Boolean,
-            "'score' must be nullable in UC — matching CustomerV3.score: Int?")
+        assertTrue(
+            scoreCol["nullable"] as Boolean,
+            "'score' must be nullable in UC — matching CustomerV3.score: Int?",
+        )
 
         println("V3 migration: score column registered as nullable in Unity Catalog")
     }
@@ -196,28 +221,32 @@ class SchemaGovernanceTest : UnityCatalogTestBase() {
     fun `type-gap registration - FinancialReport with BigDecimal registered via reflection backend`() {
         // FinancialReport has BigDecimal — not @Serializable, schemaFor() is unavailable.
         // Use reflection's getSparkSchema to derive the UC columns.
-        val schema  = getSparkSchema(typeOf<FinancialReport>())
+        val schema = getSparkSchema(typeOf<FinancialReport>())
         val columns = schema.toUcColumns()
 
         println("\n── FinancialReport (BigDecimal) schema via reflection backend ──")
         println("Schema: ${schema.treeString()}")
 
-        val registered = UnityCatalogRestClient.createTable(
-            baseUrl          = baseUrl,
-            catalogName      = CATALOG,
-            schemaName       = SCHEMA,
-            tableName        = FINANCIAL_TABLE,
-            columns          = columns,
-            storageLocation  = "/tmp/uc-demo/$CATALOG/$SCHEMA/$FINANCIAL_TABLE",
-            dataSourceFormat = "DELTA"
-        )
+        val registered =
+            UnityCatalogRestClient.createTable(
+                baseUrl = baseUrl,
+                catalogName = CATALOG,
+                schemaName = SCHEMA,
+                tableName = FINANCIAL_TABLE,
+                columns = columns,
+                storageLocation = "/tmp/uc-demo/$CATALOG/$SCHEMA/$FINANCIAL_TABLE",
+                dataSourceFormat = "DELTA",
+            )
         assertTrue(registered, "FinancialReport schema should register via reflection backend")
 
         val ucColumns = UnityCatalogRestClient.getTableColumns(baseUrl, CATALOG, SCHEMA, FINANCIAL_TABLE)
-        val amountCol = ucColumns.find { it["name"] == "amount" }
+        val amountCol = ucColumns.find { it["name"] == "amount" }!!
         assertNotNull(amountCol, "'amount' column must be present in UC")
-        assertEquals("DECIMAL", (amountCol["type_name"] as String).uppercase(),
-            "BigDecimal → DECIMAL in Unity Catalog")
+        assertEquals(
+            "DECIMAL",
+            (amountCol["type_name"] as String).uppercase(),
+            "BigDecimal → DECIMAL in Unity Catalog",
+        )
 
         println("BigDecimal registered as DECIMAL — reflection bridges the serialization type gap")
     }
@@ -227,10 +256,11 @@ class SchemaGovernanceTest : UnityCatalogTestBase() {
     @Test
     @Order(6)
     fun `end-to-end - encode V1 data, verify schema matches UC, detect V2 drift pre-flight`() {
-        val v1Data = listOf(
-            CustomerV1("c1", "Alice", "Gold"),
-            CustomerV1("c2", "Bob",   "Silver")
-        )
+        val v1Data =
+            listOf(
+                CustomerV1("c1", "Alice", "Gold"),
+                CustomerV1("c2", "Bob", "Silver"),
+            )
 
         // Step 1: encode via BackendRouter (serialization backend, no drift expected)
         val (df, encodeReport) = BackendRouter.encode(v1Data, spark, serializer<CustomerV1>())
@@ -239,24 +269,27 @@ class SchemaGovernanceTest : UnityCatalogTestBase() {
         println("\n── Step 1: V1 data encoded (${df.count()} rows) ──")
 
         // Step 2: verify DataFrame schema matches the UC-registered V1 schema
-        val ucColumns     = UnityCatalogRestClient.getTableColumns(baseUrl, CATALOG, SCHEMA, UC_TABLE)
+        val ucColumns = UnityCatalogRestClient.getTableColumns(baseUrl, CATALOG, SCHEMA, UC_TABLE)
         val catalogSchema = ucColumns.toStructType()
-        val localSchema   = schemaFor(serializer<CustomerV1>())
-        val v1Drifts      = SchemaDriftReport.compare(localSchema, catalogSchema)
+        val localSchema = schemaFor(serializer<CustomerV1>())
+        val v1Drifts = SchemaDriftReport.compare(localSchema, catalogSchema)
         println("Step 2: V1 DataFrame vs UC schema — drift: ${if (v1Drifts.isEmpty()) "none" else v1Drifts.toString()}")
 
         // Step 3: developer upgrades model to V2 — pre-flight catches the contract mismatch
         val v2Drifts = SchemaDriftReport.compare(schemaFor(serializer<CustomerV2>()), catalogSchema)
-        assertTrue(v2Drifts.any { it.fieldName == "score" },
-            "V2 pre-flight must be blocked by UC schema comparison")
-
-        val preflightReport = SchemaDriftReport(
-            trigger        = SchemaDriftReport.triggerFrom(v2Drifts),
-            typeName       = "CustomerV2 vs UC (pre-flight)",
-            expectedSchema = schemaFor(serializer<CustomerV2>()),
-            actualSchema   = catalogSchema,
-            diffs          = v2Drifts
+        assertTrue(
+            v2Drifts.any { it.fieldName == "score" },
+            "V2 pre-flight must be blocked by UC schema comparison",
         )
+
+        val preflightReport =
+            SchemaDriftReport(
+                trigger = SchemaDriftReport.triggerFrom(v2Drifts),
+                typeName = "CustomerV2 vs UC (pre-flight)",
+                expectedSchema = schemaFor(serializer<CustomerV2>()),
+                actualSchema = catalogSchema,
+                diffs = v2Drifts,
+            )
         println("Step 3: CustomerV2 upgrade pre-flight:")
         println(preflightReport.format())
 

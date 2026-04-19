@@ -1,8 +1,13 @@
 package resilience
 
 import classes.SparkTestBase
-import org.apache.spark.sql.types.*
-import org.junit.jupiter.api.Assertions.*
+import org.apache.spark.sql.types.ArrayType
+import org.apache.spark.sql.types.DecimalType
+import org.apache.spark.sql.types.TimestampType
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import spark.kotlin.reflect.toDataFrame
 import spark.kotlin.reflect.toKotlinList
@@ -25,15 +30,15 @@ import java.time.Instant
  *   - java.time.Instant → TimestampType (reflection: via java.sql.Timestamp)
  */
 class TypeCoverageGapTest : SparkTestBase() {
-
     // ── BigDecimal ────────────────────────────────────────────────────────────
 
     @Test
     fun `BigDecimal field routes to reflection backend - schema has DecimalType`() {
-        val reports = listOf(
-            FinancialReport("r1", BigDecimal("1234.56"), "EUR"),
-            FinancialReport("r2", BigDecimal("9999.99"), "USD")
-        )
+        val reports =
+            listOf(
+                FinancialReport("r1", BigDecimal("1234.56"), "EUR"),
+                FinancialReport("r2", BigDecimal("9999.99"), "USD"),
+            )
 
         // Type gap acknowledged — serializer = null routes to reflection
         val (df, report) = BackendRouter.encode(reports, spark, serializer = null)
@@ -42,8 +47,10 @@ class TypeCoverageGapTest : SparkTestBase() {
 
         val amountField = df.schema().fields().find { it.name() == "amount" }
         assertNotNull(amountField, "DataFrame must contain 'amount' column")
-        assertTrue(amountField!!.dataType() is DecimalType,
-            "BigDecimal must map to DecimalType — reflection backend converts via java.math.BigDecimal")
+        assertTrue(
+            amountField!!.dataType() is DecimalType,
+            "BigDecimal must map to DecimalType — reflection backend converts via java.math.BigDecimal",
+        )
 
         println("BigDecimal → ${amountField.dataType()} (reflection backend only)")
         println(df.schema().treeString())
@@ -51,9 +58,10 @@ class TypeCoverageGapTest : SparkTestBase() {
 
     @Test
     fun `BigDecimal round-trip via reflection backend preserves value`() {
-        val original = listOf(
-            FinancialReport("r1", BigDecimal("1234.56789"), "EUR")
-        )
+        val original =
+            listOf(
+                FinancialReport("r1", BigDecimal("1234.56789"), "EUR"),
+            )
 
         val df = original.toDataFrame(spark)
         val decoded = df.toKotlinList<FinancialReport>()
@@ -62,18 +70,22 @@ class TypeCoverageGapTest : SparkTestBase() {
         assertEquals(original[0].id, decoded[0].id)
         assertEquals(original[0].currency, decoded[0].currency)
         // BigDecimal scale may differ after Spark round-trip; compare by value
-        assertEquals(0, original[0].amount.compareTo(decoded[0].amount),
-            "BigDecimal value must be preserved after Spark round-trip")
+        assertEquals(
+            0,
+            original[0].amount.compareTo(decoded[0].amount),
+            "BigDecimal value must be preserved after Spark round-trip",
+        )
     }
 
     // ── Set<String> ───────────────────────────────────────────────────────────
 
     @Test
     fun `Set field routes to reflection backend - schema has ArrayType`() {
-        val items = listOf(
-            TaggedItem("i1", "Kotlin",  setOf("jvm", "functional", "oop")),
-            TaggedItem("i2", "Spark",   setOf("distributed", "batch"))
-        )
+        val items =
+            listOf(
+                TaggedItem("i1", "Kotlin", setOf("jvm", "functional", "oop")),
+                TaggedItem("i2", "Spark", setOf("distributed", "batch")),
+            )
 
         val (df, report) = BackendRouter.encode(items, spark, serializer = null)
 
@@ -81,34 +93,41 @@ class TypeCoverageGapTest : SparkTestBase() {
 
         val tagsField = df.schema().fields().find { it.name() == "tags" }
         assertNotNull(tagsField)
-        assertTrue(tagsField!!.dataType() is ArrayType,
-            "Set<String> must map to ArrayType — kotlinx has no SET kind, reflection uses ArrayType")
+        assertTrue(
+            tagsField!!.dataType() is ArrayType,
+            "Set<String> must map to ArrayType — kotlinx has no SET kind, reflection uses ArrayType",
+        )
 
         println("Set<String> → ${tagsField.dataType()} (reflection backend only)")
     }
 
     @Test
     fun `Set round-trip via reflection backend preserves elements`() {
-        val original = listOf(
-            TaggedItem("i1", "Test", setOf("alpha", "beta", "gamma"))
-        )
+        val original =
+            listOf(
+                TaggedItem("i1", "Test", setOf("alpha", "beta", "gamma")),
+            )
 
         val df = original.toDataFrame(spark)
         val decoded = df.toKotlinList<TaggedItem>()
 
         assertEquals(1, decoded.size)
-        assertEquals(original[0].tags, decoded[0].tags,
-            "Set elements must be preserved after round-trip (order may differ, Set equality handles this)")
+        assertEquals(
+            original[0].tags,
+            decoded[0].tags,
+            "Set elements must be preserved after round-trip (order may differ, Set equality handles this)",
+        )
     }
 
     // ── java.time.Instant ────────────────────────────────────────────────────
 
     @Test
     fun `java_time_Instant field routes to reflection backend - schema has TimestampType`() {
-        val events = listOf(
-            TimeEvent("e1", "System started", Instant.parse("2025-01-01T10:00:00Z")),
-            TimeEvent("e2", "Job completed",  Instant.parse("2025-01-01T11:30:00Z"))
-        )
+        val events =
+            listOf(
+                TimeEvent("e1", "System started", Instant.parse("2025-01-01T10:00:00Z")),
+                TimeEvent("e2", "Job completed", Instant.parse("2025-01-01T11:30:00Z")),
+            )
 
         val (df, report) = BackendRouter.encode(events, spark, serializer = null)
 
@@ -116,8 +135,10 @@ class TypeCoverageGapTest : SparkTestBase() {
 
         val timestampField = df.schema().fields().find { it.name() == "occurredAt" }
         assertNotNull(timestampField)
-        assertTrue(timestampField!!.dataType() is TimestampType,
-            "java.time.Instant must map to TimestampType via java.sql.Timestamp (reflection only)")
+        assertTrue(
+            timestampField!!.dataType() is TimestampType,
+            "java.time.Instant must map to TimestampType via java.sql.Timestamp (reflection only)",
+        )
 
         println("java.time.Instant → ${timestampField.dataType()} (reflection backend only)")
         println(df.schema().treeString())
@@ -136,7 +157,7 @@ class TypeCoverageGapTest : SparkTestBase() {
         assertEquals(
             originalInstant.epochSecond,
             decoded[0].occurredAt.epochSecond,
-            "Instant epoch seconds must be preserved after round-trip"
+            "Instant epoch seconds must be preserved after round-trip",
         )
     }
 
@@ -144,7 +165,8 @@ class TypeCoverageGapTest : SparkTestBase() {
 
     @Test
     fun `type coverage gap - summary of types requiring reflection backend`() {
-        println("""
+        println(
+            """
             |
             |── Type Coverage Gap Summary ────────────────────────────────────────────────────
             |  Type                 Reflection      Serialization   Notes
@@ -161,7 +183,8 @@ class TypeCoverageGapTest : SparkTestBase() {
             |  BackendRouter with serializer = null routes all of the above to reflection.
             |  The router call site documents the gap explicitly in source code.
             |──────────────────────────────────────────────────────────────────────────────────
-        """.trimMargin())
+            """.trimMargin(),
+        )
         // No assertion — this test exists to print the summary and act as living documentation
         assertTrue(true)
     }

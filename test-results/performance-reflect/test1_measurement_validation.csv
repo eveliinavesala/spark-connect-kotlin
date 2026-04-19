@@ -1,0 +1,20 @@
+# Test: Test 1 - Measurement Validation
+# Description: Verify benchmarking methodology correctly distinguishes O(1) from O(n)
+# Test Class: spark.kotlin.reflect.ReflectionCacheTest
+# Test Method: measurement method correctly distinguishes O(1) from O(n)()
+# Warmup Iterations: 10000
+# Sample Sizes: 10000, 50000, 100000
+# Runs Per Sample: 1
+# Blackhole: Enabled
+# GC Before Test: false
+# Post-GC Sleep: 0ms
+# Pass Threshold: HashMap growth < 3.0x, ArrayList growth > 2.0x
+#
+test_name,test_id,execution_id,execution_date,execution_time,sample_size,run_number,time_ns,warmup_iterations,jvm_version,jvm_vendor,os_name,os_version,os_arch,cpu_cores,max_memory_mb,total_memory_mb,free_memory_mb,kotlin_version,gradle_version,test_result,test_status,failure_reason,test1_data_structure,test1_expected_complexity,test1_structure_growth_10k_100k
+test1_measurement_validation,test1,exec_eadd0c088800,2026-04-19,12:34:56.791,10000,1,72,0,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,330,92,2.3.0,8.14.3,PASSED,completed,,HashMap,O(1),0.89
+test1_measurement_validation,test1,exec_eadd0c088800,2026-04-19,12:34:56.797,50000,1,67,0,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,330,91,2.3.0,8.14.3,PASSED,completed,,HashMap,O(1),0.89
+test1_measurement_validation,test1,exec_eadd0c088800,2026-04-19,12:34:56.809,100000,1,64,0,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,330,86,2.3.0,8.14.3,PASSED,completed,,HashMap,O(1),0.89
+test1_measurement_validation,test1,exec_eadd0c088800,2026-04-19,12:34:56.832,10000,1,39657,0,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,330,75,2.3.0,8.14.3,PASSED,completed,,ArrayList,O(n),9.45
+test1_measurement_validation,test1,exec_eadd0c088800,2026-04-19,12:34:56.874,50000,1,188688,0,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,330,74,2.3.0,8.14.3,PASSED,completed,,ArrayList,O(n),9.45
+test1_measurement_validation,test1,exec_eadd0c088800,2026-04-19,12:34:57.068,100000,1,374873,0,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,330,73,2.3.0,8.14.3,PASSED,completed,,ArrayList,O(n),9.45
+test1_measurement_validation,test1,exec_eadd0c088800,2026-04-19,12:34:57.461,10000,1,44,10000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,330,69,2.3.0,8.14.3,PASSED,completed,,ReflectionCache,O(1),N/A

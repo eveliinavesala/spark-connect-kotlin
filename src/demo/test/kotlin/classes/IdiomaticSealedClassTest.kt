@@ -8,18 +8,23 @@ import spark.kotlin.reflect.toKotlinList
 
 // Define the sealed class and its subclasses within the test file for clarity
 sealed class Result {
-    data class Success(val data: String) : Result()
-    data class Error(val message: String) : Result()
+    data class Success(
+        val data: String,
+    ) : Result()
+
+    data class Error(
+        val message: String,
+    ) : Result()
 }
 
 class IdiomaticSealedClassTest : SparkTestBase() {
-
     @Test
     fun `test sealed class with spark dataframe`() {
-        val data = listOf(
-            Result.Success("Data"),
-            Result.Error("An error occurred")
-        )
+        val data =
+            listOf(
+                Result.Success("Data"),
+                Result.Error("An error occurred"),
+            )
 
         val df = data.toDataFrame(spark)
 
@@ -32,10 +37,11 @@ class IdiomaticSealedClassTest : SparkTestBase() {
 
     @Test
     fun `test sealed class with spark dataset`() {
-        val data = listOf(
-            Result.Success("Data"),
-            Result.Error("An error occurred")
-        )
+        val data =
+            listOf(
+                Result.Success("Data"),
+                Result.Error("An error occurred"),
+            )
 
         val df = data.toDataFrame(spark)
         val results = df.toKotlinList<Result>()

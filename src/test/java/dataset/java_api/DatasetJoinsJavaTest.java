@@ -20,12 +20,29 @@ public class DatasetJoinsJavaTest extends JavaSparkTestBase {
         private int id;
         private String name;
 
-        public City() {}
-        public City(int id, String name) { this.id = id; this.name = name; }
-        public int getId() { return id; }
-        public void setId(int id) { this.id = id; }
-        public String getName() { return name; }
-        public void setName(String name) { this.name = name; }
+        public City() {
+        }
+
+        public City(int id, String name) {
+            this.id = id;
+            this.name = name;
+        }
+
+        public int getId() {
+            return id;
+        }
+
+        public void setId(int id) {
+            this.id = id;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public void setName(String name) {
+            this.name = name;
+        }
     }
 
     private Dataset<Row> citiesDF;
@@ -33,9 +50,9 @@ public class DatasetJoinsJavaTest extends JavaSparkTestBase {
     @BeforeEach
     public void setupJoins() {
         List<City> cityData = Arrays.asList(
-            new City(1, "Helsinki"),
-            new City(2, "Turku"),
-            new City(4, "Stockholm")
+                new City(1, "Helsinki"),
+                new City(2, "Turku"),
+                new City(4, "Stockholm")
         );
         citiesDF = spark.createDataFrame(cityData, City.class);
     }
@@ -62,8 +79,8 @@ public class DatasetJoinsJavaTest extends JavaSparkTestBase {
     public void testJoinWith() {
         Dataset<City> citiesDS = citiesDF.as(Encoders.bean(City.class));
         Dataset<Tuple2<Person, City>> joined = peopleDS.joinWith(citiesDS, peopleDS.col("cityId").equalTo(citiesDS.col("id")), "inner")
-            .orderBy(col("_1.name")); // Add deterministic ordering
-        
+                .orderBy(col("_1.name")); // Add deterministic ordering
+
         List<Tuple2<Person, City>> results = joined.collectAsList();
         assertEquals(3, results.size());
         assertEquals("Alice", results.get(0)._1().getName());
@@ -72,8 +89,8 @@ public class DatasetJoinsJavaTest extends JavaSparkTestBase {
 
     @Test
     public void testUnionAndExcept() {
-        Dataset<Row> morePeople = spark.createDataFrame(Arrays.asList(new Person("Eve", 28, 4)), Person.class);
-        
+        Dataset<Row> morePeople = spark.createDataFrame(List.of(new Person("Eve", 28, 4)), Person.class);
+
         Dataset<Row> union = peopleDF.union(morePeople);
         assertEquals(5, union.count());
 

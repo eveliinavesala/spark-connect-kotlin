@@ -1,0 +1,15 @@
+timestamp,backend,workload,n_rows,warmup_rounds,measure_rounds,median_ms,min_ms,max_ms,rows_per_sec_median
+20260412_2112,serialize,encode-only,8582,5,10,31.6,24.2,46.7,271525
+20260412_2112,serialize,schema-recompute,1,5,10,0.0,0.0,0.0,1582278
+20260412_2112,reflect,decode-only,8582,5,10,147.3,129.5,238.7,58278
+20260412_2112,reflect+schema,hardcoded-schema round-trip,8582,5,10,248.1,201.9,332.3,34587
+20260412_2112,reflect,encode-only,8582,5,10,32.5,31.4,67.9,264006
+20260412_2112,reflect,schema-cold,1,5,10,0.0,0.0,0.0,162022
+20260412_2112,reflect,schema-warm,1,5,10,0.0,0.0,0.0,11764705
+20260412_2112,serialize,round-trip,8582,5,10,131.2,106.7,167.8,65392
+20260412_2112,serialize+schema,hardcoded-schema round-trip,8582,5,10,134.5,121.9,150.9,63800
+20260412_2112,raw-baseline,round-trip,8582,5,10,111.8,90.1,144.4,76783
+20260412_2112,serialize,decode-only,8582,5,10,67.3,47.9,118.2,127535
+20260412_2112,reflect,round-trip,8582,5,10,213.5,192.8,258.5,40203
+20260412_2112,serialize,schema-cold,1,5,10,0.0,0.0,0.0,40068
+20260412_2112,serialize,schema-warm,1,5,10,0.0,0.0,0.0,25000000

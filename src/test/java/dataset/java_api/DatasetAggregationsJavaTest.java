@@ -4,6 +4,7 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -19,16 +20,16 @@ public class DatasetAggregationsJavaTest extends JavaSparkTestBase {
     @BeforeEach
     public void setupSales() {
         List<Row> salesData = Arrays.asList(
-            org.apache.spark.sql.RowFactory.create("Java", "Helsinki", 100),
-            org.apache.spark.sql.RowFactory.create("Kotlin", "Helsinki", 150),
-            org.apache.spark.sql.RowFactory.create("Java", "Turku", 200),
-            org.apache.spark.sql.RowFactory.create("Kotlin", "Turku", 250)
+                org.apache.spark.sql.RowFactory.create("Java", "Helsinki", 100),
+                org.apache.spark.sql.RowFactory.create("Kotlin", "Helsinki", 150),
+                org.apache.spark.sql.RowFactory.create("Java", "Turku", 200),
+                org.apache.spark.sql.RowFactory.create("Kotlin", "Turku", 250)
         );
         salesDF = spark.createDataFrame(salesData,
-            new org.apache.spark.sql.types.StructType()
-                .add("course", "string")
-                .add("city", "string")
-                .add("sales", "integer")
+                new org.apache.spark.sql.types.StructType()
+                        .add("course", "string")
+                        .add("city", "string")
+                        .add("sales", "integer")
         );
     }
 
@@ -37,9 +38,9 @@ public class DatasetAggregationsJavaTest extends JavaSparkTestBase {
     @Test
     public void testGroupByAndAgg() {
         Dataset<Row> grouped = salesDF.groupBy("city").agg(sum("sales"), avg("sales"));
-        
+
         Map<String, Row> results = grouped.collectAsList().stream()
-            .collect(Collectors.toMap(row -> row.getString(0), row -> row));
+                .collect(Collectors.toMap(row -> row.getString(0), row -> row));
 
         Row helsinkiRow = results.get("Helsinki");
         assertNotNull(helsinkiRow);

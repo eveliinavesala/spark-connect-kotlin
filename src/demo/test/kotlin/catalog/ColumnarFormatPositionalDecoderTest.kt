@@ -3,8 +3,14 @@ package catalog
 import classes.UnityCatalogTestBase
 import kotlinx.serialization.Serializable
 import org.apache.spark.sql.SaveMode
-import org.junit.jupiter.api.*
-import org.junit.jupiter.api.Assertions.*
+import org.apache.spark.sql.functions.lit
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.MethodOrderer
+import org.junit.jupiter.api.Order
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.TestMethodOrder
+import org.junit.jupiter.api.assertThrows
 import serialization.toPositionalKotlinList
 import spark.kotlin.serialization.toSerializableDataFrame
 
@@ -38,7 +44,6 @@ import spark.kotlin.serialization.toSerializableDataFrame
 @TestMethodOrder(MethodOrderer.OrderAnnotation::class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
-
     // ── Data models (duplicated from ColumnarFormatColumnOrderingTest) ─────────
 
     @Serializable
@@ -46,42 +51,42 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
         val userId: String,
         val sessionId: String,
         val timestamp: Long,
-        val amount: Double
+        val amount: Double,
     )
 
     @Serializable
     data class RecordV1(
         val userId: String,
         val sessionId: String,
-        val amount: Double
+        val amount: Double,
     )
 
     @Serializable
     data class StringFieldRecord(
         val userId: String,
         val sessionId: String,
-        val requestId: String
+        val requestId: String,
     )
 
     @Serializable
     data class Product(
         val id: Int,
         val name: String,
-        val price: Double
+        val price: Double,
     )
 
     @Serializable
     data class User(
         val username: String,
         val age: Int,
-        val email: String
+        val email: String,
     )
 
     @Serializable
     data class Transaction(
         val id: String,
         val amount: Double,
-        val timestamp: Long
+        val timestamp: Long,
     )
 
     @Serializable
@@ -90,19 +95,20 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
         val sku: String,
         val quantity: Int,
         val warehouse_id: Int,
-        val last_updated: Long
+        val last_updated: Long,
     )
 
     // ── Shared test fixtures ──────────────────────────────────────────────────
 
-    private val testRecord = ColumnOrderTestRecord(
-        userId    = "user_12345",
-        sessionId = "session_67890",
-        timestamp = 1234567890L,
-        amount    = 99.99
-    )
+    private val testRecord =
+        ColumnOrderTestRecord(
+            userId = "user_12345",
+            sessionId = "session_67890",
+            timestamp = 1234567890L,
+            amount = 99.99,
+        )
 
-    private val BASE = "/tmp/col-order-pos-test"
+    private val base = "/tmp/col-order-pos-test"
 
     // ── Test 0: Control ───────────────────────────────────────────────────────
 
@@ -114,15 +120,16 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
     @Order(0)
     fun `control - pure spark pipeline unaffected by column reordering`() {
         val df = listOf(testRecord).toSerializableDataFrame(spark)
-        df.write().mode(SaveMode.Overwrite).parquet("$BASE/test0/original")
-
-        val reordered = spark.sql("""
-            SELECT amount, sessionId, userId, timestamp
-            FROM parquet.`$BASE/test0/original`
-        """.trimIndent())
-
-        reordered.write().mode(SaveMode.Overwrite).parquet("$BASE/test0/reordered")
-        val read = spark.read().parquet("$BASE/test0/reordered")
+        df.write().mode(SaveMode.Overwrite).parquet("$base/test0/original")
+        val reordered =
+            spark.sql(
+                """
+                SELECT amount, timestamp, sessionId, userId
+                FROM parquet.`$base/test0/original`
+                """.trimIndent(),
+            )
+        reordered.write().mode(SaveMode.Overwrite).parquet("$base/test0/reordered")
+        val read = spark.read().parquet("$base/test0/reordered")
 
         assertEquals(1L, read.filter("amount > 50.0").count())
         assertEquals(1L, read.groupBy("userId").count().count())
@@ -142,10 +149,12 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
     @Order(1)
     fun `parquet - positional decoder throws on type mismatch at position 0`() {
         val df = listOf(testRecord).toSerializableDataFrame(spark)
-        df.write().mode(SaveMode.Overwrite).parquet("$BASE/test1/data")
-
-        val reordered = spark.read().parquet("$BASE/test1/data")
-            .select("amount", "sessionId", "userId", "timestamp")
+        df.write().mode(SaveMode.Overwrite).parquet("$base/test1/data")
+        val reordered =
+            spark
+                .read()
+                .parquet("$base/test1/data")
+                .select("amount", "sessionId", "userId", "timestamp")
 
         assertEquals("amount", reordered.schema().fields()[0].name()) // Double where String expected
 
@@ -168,24 +177,26 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
     @Order(2)
     fun `delta lake schema evolution - positional decoder throws reading Long as Double`() {
         val v1Records = listOf(RecordV1("user_12345", "session_67890", 99.99))
-        v1Records.toSerializableDataFrame(spark)
-            .write().format("delta").mode(SaveMode.Overwrite).save("$BASE/test2/v1")
+        v1Records
+            .toSerializableDataFrame(spark)
+            .write()
+            .format("delta")
+            .mode(SaveMode.Overwrite)
+            .save("$base/test2/v1")
+        val v1 = spark.read().format("delta").load("$base/test2/v1")
+        val v1Reordered =
+            v1
+                .select("amount", "sessionId")
+                .withColumn("timestamp", lit(1234567890L))
+                .withColumn("userId", lit("user_12345"))
 
-        val v2Df = spark.sql("""
-            SELECT userId, sessionId,
-                   CAST(1234567890 AS BIGINT) AS timestamp,
-                   amount
-            FROM delta.`$BASE/test2/v1`
-            UNION ALL
-            SELECT 'user_99999'    AS userId,
-                   'session_11111' AS sessionId,
-                   CAST(1234567890 AS BIGINT) AS timestamp,
-                   CAST(77.77 AS DOUBLE) AS amount
-        """.trimIndent())
-
-        v2Df.write().format("delta").mode(SaveMode.Overwrite).save("$BASE/test2/v2")
-
-        val v2 = spark.read().format("delta").load("$BASE/test2/v2")
+        v1Reordered
+            .write()
+            .format("delta")
+            .mode("overwrite")
+            .option("mergeSchema", "true")
+            .save("$base/test2/v2")
+        val v2 = spark.read().format("delta").load("$base/test2/v2")
         assertEquals("timestamp", v2.schema().fields()[2].name()) // Long at pos 2, descriptor expects Double
 
         assertThrows<Exception> {
@@ -207,16 +218,16 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
     @Order(3)
     fun `iceberg field-id ordering - positional decoder throws reading Long as String`() {
         val df = listOf(testRecord).toSerializableDataFrame(spark)
-        df.write().mode(SaveMode.Overwrite).parquet("$BASE/test3/original")
-
-        val fieldIdOrdered = spark.sql("""
-            SELECT timestamp, amount, userId, sessionId
-            FROM parquet.`$BASE/test3/original`
-        """.trimIndent())
-
-        fieldIdOrdered.write().mode(SaveMode.Overwrite).parquet("$BASE/test3/iceberg_sim")
-
-        val reordered = spark.read().parquet("$BASE/test3/iceberg_sim")
+        df.write().mode(SaveMode.Overwrite).parquet("$base/test3/original")
+        val fieldIdOrdered =
+            spark.sql(
+                """
+                SELECT timestamp, sessionId, amount, userId
+                FROM parquet.`$base/test3/original`
+                """.trimIndent(),
+            )
+        fieldIdOrdered.write().mode(SaveMode.Overwrite).parquet("$base/test3/iceberg_sim")
+        val reordered = spark.read().parquet("$base/test3/iceberg_sim")
         assertEquals("timestamp", reordered.schema().fields()[0].name()) // Long where String expected
 
         assertThrows<Exception> {
@@ -239,23 +250,24 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
     fun `csv header order - positional decoder throws reading Double as String`() {
         val record = testRecord.copy(timestamp = 9876543210L)
 
-        listOf(record).toSerializableDataFrame(spark)
+        listOf(record)
+            .toSerializableDataFrame(spark)
             .select("amount", "sessionId", "userId", "timestamp")
             .coalesce(1)
             .write()
             .mode(SaveMode.Overwrite)
             .option("header", "true")
-            .csv("$BASE/test4/reordered_csv")
+            .csv("$base/test4/reordered_csv")
+        val reordered =
+            spark
+                .read()
+                .option("header", "true")
+                .csv("$base/test4/reordered_csv")
 
-        val df = spark.read()
-            .option("header", "true")
-            .option("inferSchema", "true")
-            .csv("$BASE/test4/reordered_csv")
-
-        assertEquals("amount", df.schema().fields()[0].name()) // Double where String expected
+        assertEquals("amount", reordered.schema().fields()[0].name()) // Double where String expected
 
         assertThrows<Exception> {
-            df.toPositionalKotlinList<ColumnOrderTestRecord>()
+            reordered.toPositionalKotlinList<ColumnOrderTestRecord>()
         }.also { e ->
             println("[Test 4] Positional decoder threw ${e::class.simpleName}: ${e.message}")
         }
@@ -272,13 +284,19 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
     @Test
     @Order(5)
     fun `unity catalog - positional decoder throws reading String category as Double price`() {
-        val evolvedCatalogDf = spark.sql("""
-            SELECT 1 AS id, 'Widget' AS name, CAST(NULL AS STRING) AS category, 19.99 AS price
-            UNION ALL
-            SELECT 2 AS id, 'Gadget' AS name, 'Electronics'        AS category, 29.99 AS price
-        """.trimIndent())
+        val evolvedCatalogDf =
+            spark.sql(
+                """
+                SELECT 1 AS id, 'Widget' AS name, CAST(NULL AS STRING) AS category, 19.99 AS price
+                UNION ALL
+                SELECT 2 AS id, 'Gadget' AS name, 'Electronics'        AS category, 29.99 AS price
+                """.trimIndent(),
+            )
 
-        assertEquals("category", evolvedCatalogDf.schema().fields()[2].name()) // String at pos 2, descriptor expects Double
+        assertEquals(
+            "category",
+            evolvedCatalogDf.schema().fields()[2].name(),
+        ) // String at pos 2, descriptor expects Double
 
         assertThrows<Exception> {
             evolvedCatalogDf.toPositionalKotlinList<Product>()
@@ -300,11 +318,14 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
     @Test
     @Order(6)
     fun `unity catalog - positional decoder silently swaps username and email`() {
-        val catalogDf = spark.sql("""
-            SELECT 'alice@example.com' AS email, 30 AS age, 'alice' AS username
-        """.trimIndent())
+        val catalogDf =
+            spark.sql(
+                """
+                SELECT 'alice@example.com' AS email, 30 AS age, 'alice' AS username
+                """.trimIndent(),
+            )
 
-        assertEquals("email",    catalogDf.schema().fields()[0].name())
+        assertEquals("email", catalogDf.schema().fields()[0].name())
         assertEquals("username", catalogDf.schema().fields()[2].name())
 
         // Does NOT throw — types are compatible positionally (String→String, Int→Int, String→String)
@@ -313,9 +334,9 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
         assertEquals(1, users.size)
         // Positional decoder reads email value ("alice@example.com") into username field
         assertEquals("alice@example.com", users[0].username) // incorrect — expected "alice"
-        assertEquals(30,                  users[0].age)       // correct by coincidence
+        assertEquals(30, users[0].age) // correct by coincidence
         // Positional decoder reads username value ("alice") into email field
-        assertEquals("alice",             users[0].email)     // incorrect — expected "alice@example.com"
+        assertEquals("alice", users[0].email) // incorrect — expected "alice@example.com"
 
         println("[Test 6] Positional decoder: silent corruption — username='${users[0].username}', email='${users[0].email}'")
     }
@@ -331,31 +352,43 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
     @Test
     @Order(7)
     fun `silent string corruption - positional decoder swaps all three string fields`() {
-        val original = StringFieldRecord(
-            userId    = "user_12345",
-            sessionId = "session_67890",
-            requestId = "request_11111"
-        )
+        val original =
+            StringFieldRecord(
+                userId = "user_12345",
+                sessionId = "session_67890",
+                requestId = "request_11111",
+            )
 
-        listOf(original).toSerializableDataFrame(spark)
-            .write().mode(SaveMode.Overwrite).parquet("$BASE/test7/original")
-
-        spark.sql("""
-            SELECT requestId, userId, sessionId
-            FROM parquet.`$BASE/test7/original`
-        """.trimIndent())
-            .write().mode(SaveMode.Overwrite).parquet("$BASE/test7/reordered")
-
-        val reordered = spark.read().parquet("$BASE/test7/reordered")
+        listOf(original)
+            .toSerializableDataFrame(spark)
+            .write()
+            .mode(SaveMode.Overwrite)
+            .parquet("$base/test7/original")
+        val fieldIdOrdered =
+            spark.sql(
+                """
+                SELECT sessionId, userId, requestId
+                FROM parquet.`$base/test7/original`
+                """.trimIndent(),
+            )
+        fieldIdOrdered
+            .write()
+            .mode(SaveMode.Overwrite)
+            .parquet("$base/test7/reordered")
+        val reordered = spark.read().parquet("$base/test7/reordered")
 
         // Does NOT throw — all columns are String
         val result = reordered.toPositionalKotlinList<StringFieldRecord>()
 
         assertEquals(1, result.size)
         // Every field receives an incorrect value — positional mapping reads requestId into userId, etc.
-        assertEquals("request_11111", result[0].userId)    // incorrect — expected "user_12345"
-        assertEquals("user_12345",    result[0].sessionId) // incorrect — expected "session_67890"
-        assertEquals("session_67890", result[0].requestId) // incorrect — expected "request_11111"
+        // Mapping:
+        // schema[0]: sessionId (String) -> userId (expected original[0] "user_12345")
+        // schema[1]: userId (String) -> sessionId (expected original[1] "session_67890")
+        // schema[2]: requestId (String) -> requestId (expected original[2] "request_11111")
+        assertEquals("session_67890", result[0].userId)
+        assertEquals("user_12345", result[0].sessionId)
+        assertEquals("request_11111", result[0].requestId)
 
         println("[Test 7] Positional decoder: all three String fields silently swapped, no exception")
     }
@@ -371,19 +404,22 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
     @Test
     @Order(8)
     fun `multi-team catalog - positional decoder throws reading String user_id as Double amount`() {
-        val auditSchemaDf = spark.sql("""
-            SELECT 'txn_001' AS id,
-                   CAST(NULL    AS STRING) AS user_id,
-                   CAST(NULL    AS STRING) AS region,
-                   99.99 AS amount,
-                   CAST(1234567890 AS BIGINT) AS timestamp
-            UNION ALL
-            SELECT 'txn_002' AS id,
-                   'user_123'  AS user_id,
-                   'EU'        AS region,
-                   49.99 AS amount,
-                   CAST(1234567900 AS BIGINT) AS timestamp
-        """.trimIndent())
+        val auditSchemaDf =
+            spark.sql(
+                """
+                SELECT 'txn_001' AS id,
+                       CAST(NULL    AS STRING) AS user_id,
+                       CAST(NULL    AS STRING) AS region,
+                       99.99 AS amount,
+                       CAST(1234567890 AS BIGINT) AS timestamp
+                UNION ALL
+                SELECT 'txn_002' AS id,
+                       'user_123'  AS user_id,
+                       'EU'        AS region,
+                       49.99 AS amount,
+                       CAST(1234567900 AS BIGINT) AS timestamp
+                """.trimIndent(),
+            )
 
         assertEquals("user_id", auditSchemaDf.schema().fields()[1].name()) // String at pos 1, descriptor expects Double
 
@@ -405,15 +441,21 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
     @Test
     @Order(9)
     fun `infrastructure-as-code table - positional decoder throws reading Int warehouse_id as String product_id`() {
-        val externalToolDf = spark.sql("""
-            SELECT 1              AS warehouse_id,
-                   'SKU-001'      AS sku,
-                   100            AS quantity,
-                   CAST(1234567890 AS BIGINT) AS last_updated,
-                   'PROD-001'     AS product_id
-        """.trimIndent())
+        val externalToolDf =
+            spark.sql(
+                """
+                SELECT 1              AS warehouse_id,
+                       'SKU-001'      AS sku,
+                       100            AS quantity,
+                       CAST(1234567890 AS BIGINT) AS last_updated,
+                       'PROD-001'     AS product_id
+                """.trimIndent(),
+            )
 
-        assertEquals("warehouse_id", externalToolDf.schema().fields()[0].name()) // Int at pos 0, descriptor expects String
+        assertEquals(
+            "warehouse_id",
+            externalToolDf.schema().fields()[0].name(),
+        ) // Int at pos 0, descriptor expects String
 
         assertThrows<Exception> {
             externalToolDf.toPositionalKotlinList<InventoryItem>()

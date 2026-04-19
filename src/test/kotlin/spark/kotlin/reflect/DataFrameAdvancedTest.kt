@@ -5,20 +5,34 @@ import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.functions.col
 import org.apache.spark.storage.StorageLevel
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertDoesNotThrow
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import spark.kotlin.dsl.times
-import spark.kotlin.reflect.toDataFrame
-import spark.kotlin.reflect.toKotlinList
 import spark.kotlin.dsl.transformDF
 
 class DataFrameAdvancedTest : SparkTestBase() {
+    data class Person(
+        var name: String = "",
+        var age: Int = 0,
+    )
 
-    data class Person(var name: String = "", var age: Int = 0)
-    data class NameOnly(var name: String = "")
-    data class AgeDoubled(var name: String = "", var age: Int = 0, var age_doubled: Long = 0)
-    data class FilledPerson(var name: String = "", var age: Long = 0)
+    data class NameOnly(
+        var name: String = "",
+    )
+
+    data class AgeDoubled(
+        var name: String = "",
+        var age: Int = 0,
+        var ageDoubled: Long = 0,
+    )
+
+    data class FilledPerson(
+        var name: String = "",
+        var age: Long = 0,
+    )
 
     private lateinit var df: Dataset<Row>
 
@@ -44,7 +58,7 @@ class DataFrameAdvancedTest : SparkTestBase() {
             df.cache()
             assertTrue(df.storageLevel().useMemory())
             df.unpersist()
-            
+
             df.persist(StorageLevel.MEMORY_ONLY())
             assertTrue(df.storageLevel().useMemory())
             df.unpersist()
@@ -73,7 +87,7 @@ class DataFrameAdvancedTest : SparkTestBase() {
     @Test
     fun `na() should handle missing data`() {
         val dfWithNulls = spark.sql("SELECT 'Alice' as name, 30 as age UNION ALL SELECT null as name, 40 as age")
-        
+
         val dropped = dfWithNulls.na().drop()
         assertEquals(1L, dropped.count())
 
@@ -99,10 +113,11 @@ class DataFrameAdvancedTest : SparkTestBase() {
 
     @Test
     fun `transformDF() should chain custom transformations`() {
-        val transformed = df.transformDF {
-            it.withColumn("age_doubled", col("age") * 2)
-        }
+        val transformed =
+            df.transformDF {
+                it.withColumn("ageDoubled", col("age") * 2)
+            }
         val result = transformed.toKotlinList<AgeDoubled>().first()
-        assertEquals(60, result.age_doubled)
+        assertEquals(60, result.ageDoubled)
     }
 }

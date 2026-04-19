@@ -1,19 +1,19 @@
-package spark.kotlin.serialization
-
-import spark.kotlin.serialization.util.LazySerializableRowList
-import kotlinx.serialization.KSerializer
-import kotlinx.serialization.serializer
-import org.apache.spark.sql.Dataset
-import org.apache.spark.sql.Row
-import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.types.StructType
-
 /**
  * Public API for kotlinx.serialization-based DataFrame conversion.
  *
  * This file contains the main extension functions for converting between
  * Kotlin objects and Spark DataFrames using kotlinx.serialization.
  */
+
+package spark.kotlin.serialization
+
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.serializer
+import org.apache.spark.sql.Dataset
+import org.apache.spark.sql.Row
+import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.types.StructType
+import spark.kotlin.serialization.util.LazySerializableRowList
 
 // ============================================================================
 // Public API - Extension Functions
@@ -38,9 +38,10 @@ import org.apache.spark.sql.types.StructType
  * val df = people.toSerializableDataFrame(spark, schema = catalog.getSchema("people"))
  * ```
  */
-inline fun <reified T> List<T>.toSerializableDataFrame(spark: SparkSession, schema: StructType? = null): Dataset<Row> {
-    return spark.createDataFrameFromSerializable(this, serializer<T>(), schema)
-}
+inline fun <reified T> List<T>.toSerializableDataFrame(
+    spark: SparkSession,
+    schema: StructType? = null,
+): Dataset<Row> = spark.createDataFrameFromSerializable(this, serializer<T>(), schema)
 
 /**
  * Convert a Spark DataFrame to List<T> using kotlinx.serialization.
@@ -50,6 +51,7 @@ inline fun <reified T> List<T>.toSerializableDataFrame(spark: SparkSession, sche
  * val people = df.toSerializableKotlinList<Person>()
  * ```
  */
+
 inline fun <reified T> Dataset<Row>.toSerializableKotlinList(): List<T> {
     return this.toSerializableKotlinListInternal(serializer<T>())
 }
@@ -69,15 +71,17 @@ inline fun <reified T> Dataset<Row>.toSerializableKotlinList(): List<T> {
 fun <T> SparkSession.createDataFrameFromSerializable(
     data: List<T>,
     serializer: KSerializer<T>,
-    schema: StructType? = null
+    schema: StructType? = null,
 ): Dataset<Row> {
     if (data.isEmpty()) return this.emptyDataFrame()
 
     val resolvedSchema = schema ?: SerializationCache.getSchema(serializer)
-    val sparkSerializer = if (schema != null)
-        SparkSerializer(serializer, resolvedSchema)
-    else
-        SerializationCache.getSparkSerializer(serializer)
+    val sparkSerializer =
+        if (schema != null) {
+            SparkSerializer(serializer, resolvedSchema)
+        } else {
+            SerializationCache.getSparkSerializer(serializer)
+        }
 
     return this.createDataFrame(LazySerializableRowList(data, sparkSerializer), resolvedSchema)
 }
@@ -109,9 +113,14 @@ fun <T> Dataset<Row>.toSerializableKotlinListInternal(serializer: KSerializer<T>
     // All rows share the same schema, so scanning it N times per batch is redundant.
     val dataFrameSchema = this.schema()
     val descriptor = serializer.descriptor
-    val columnIndexMap = IntArray(descriptor.elementsCount) { i ->
-        try { dataFrameSchema.fieldIndex(descriptor.getElementName(i)) } catch (_: IllegalArgumentException) { -1 }
-    }
+    val columnIndexMap =
+        IntArray(descriptor.elementsCount) { i ->
+            try {
+                dataFrameSchema.fieldIndex(descriptor.getElementName(i))
+            } catch (_: IllegalArgumentException) {
+                -1
+            }
+        }
 
     val sparkDeserializer = SerializationCache.getSparkDeserializer(serializer)
     return collectedRows.map { sparkDeserializer.deserialize(it, columnIndexMap) }

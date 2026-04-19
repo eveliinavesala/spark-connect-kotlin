@@ -3,9 +3,14 @@ package spark.kotlin.serialization
 import classes.SparkTestBase
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
-import org.apache.spark.sql.functions.*
-import org.junit.jupiter.api.Assertions
-import org.junit.jupiter.api.Assertions.*
+import org.apache.spark.sql.functions.avg
+import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.functions.count
+import org.apache.spark.sql.functions.first
+import org.apache.spark.sql.functions.size
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 /**
@@ -15,14 +20,14 @@ import org.junit.jupiter.api.Test
  * including DataFrame operations and transformations.
  */
 class SerializationE2ETest : SparkTestBase() {
-
     @Test
     fun `test simple person DataFrame creation and collection`() {
-        val people = listOf(
-            SimplePerson("Alice", 30),
-            SimplePerson("Bob", 25),
-            SimplePerson("Charlie", 35)
-        )
+        val people =
+            listOf(
+                SimplePerson("Alice", 30),
+                SimplePerson("Bob", 25),
+                SimplePerson("Charlie", 35),
+            )
 
         val df = people.toSerializableDataFrame(spark)
         df.show()
@@ -43,12 +48,13 @@ class SerializationE2ETest : SparkTestBase() {
 
     @Test
     fun `test DataFrame operations with serializable data`() {
-        val people = listOf(
-            SimplePerson("Alice", 30),
-            SimplePerson("Bob", 25),
-            SimplePerson("Charlie", 35),
-            SimplePerson("David", 28)
-        )
+        val people =
+            listOf(
+                SimplePerson("Alice", 30),
+                SimplePerson("Bob", 25),
+                SimplePerson("Charlie", 35),
+                SimplePerson("David", 28),
+            )
 
         val df = people.toSerializableDataFrame(spark)
 
@@ -62,11 +68,12 @@ class SerializationE2ETest : SparkTestBase() {
 
     @Test
     fun `test sorting and limiting`() {
-        val people = listOf(
-            SimplePerson("Alice", 30),
-            SimplePerson("Bob", 25),
-            SimplePerson("Charlie", 35)
-        )
+        val people =
+            listOf(
+                SimplePerson("Alice", 30),
+                SimplePerson("Bob", 25),
+                SimplePerson("Charlie", 35),
+            )
 
         val df = people.toSerializableDataFrame(spark)
 
@@ -76,15 +83,16 @@ class SerializationE2ETest : SparkTestBase() {
 
         assertEquals(2, result.size)
         assertEquals("Charlie", result[0].name) // age 35
-        assertEquals("Alice", result[1].name)   // age 30
+        assertEquals("Alice", result[1].name) // age 30
     }
 
     @Test
     fun `test nested structures with DataFrame`() {
-        val people = listOf(
-            PersonWithAddress("Alice", 30, Address("123 Main St", "NYC", "10001")),
-            PersonWithAddress("Bob", 25, Address("456 Oak Ave", "LA", "90001"))
-        )
+        val people =
+            listOf(
+                PersonWithAddress("Alice", 30, Address("123 Main St", "NYC", "10001")),
+                PersonWithAddress("Bob", 25, Address("456 Oak Ave", "LA", "90001")),
+            )
 
         val df = people.toSerializableDataFrame(spark)
         df.show(false)
@@ -104,11 +112,12 @@ class SerializationE2ETest : SparkTestBase() {
 
     @Test
     fun `test list fields with DataFrame operations`() {
-        val people = listOf(
-            PersonWithList("Alice", listOf("Pizza", "Pasta", "Salad")),
-            PersonWithList("Bob", listOf("Burger", "Fries")),
-            PersonWithList("Charlie", listOf())
-        )
+        val people =
+            listOf(
+                PersonWithList("Alice", listOf("Pizza", "Pasta", "Salad")),
+                PersonWithList("Bob", listOf("Burger", "Fries")),
+                PersonWithList("Charlie", listOf()),
+            )
 
         val df = people.toSerializableDataFrame(spark)
         df.show(false)
@@ -127,10 +136,11 @@ class SerializationE2ETest : SparkTestBase() {
 
     @Test
     fun `test map fields with DataFrame`() {
-        val people = listOf(
-            PersonWithMap("Alice", mapOf("email" to "alice@example.com", "phone" to "555-1234")),
-            PersonWithMap("Bob", mapOf("email" to "bob@example.com"))
-        )
+        val people =
+            listOf(
+                PersonWithMap("Alice", mapOf("email" to "alice@example.com", "phone" to "555-1234")),
+                PersonWithMap("Bob", mapOf("email" to "bob@example.com")),
+            )
 
         val df = people.toSerializableDataFrame(spark)
         df.show(false)
@@ -147,11 +157,12 @@ class SerializationE2ETest : SparkTestBase() {
 
     @Test
     fun `test enum serialization`() {
-        val people = listOf(
-            PersonWithEnum("Alice", Status.ACTIVE),
-            PersonWithEnum("Bob", Status.INACTIVE),
-            PersonWithEnum("Charlie", Status.PENDING)
-        )
+        val people =
+            listOf(
+                PersonWithEnum("Alice", Status.ACTIVE),
+                PersonWithEnum("Bob", Status.INACTIVE),
+                PersonWithEnum("Charlie", Status.PENDING),
+            )
 
         val df = people.toSerializableDataFrame(spark)
         df.show()
@@ -166,11 +177,12 @@ class SerializationE2ETest : SparkTestBase() {
 
     @Test
     fun `test sealed class polymorphism`() {
-        val animals: List<Animal> = listOf(
-            Dog("Buddy", "Golden Retriever"),
-            Cat("Whiskers", "Orange"),
-            Bird("Tweety", true)
-        )
+        val animals: List<Animal> =
+            listOf(
+                Dog("Buddy", "Golden Retriever"),
+                Cat("Whiskers", "Orange"),
+                Bird("Tweety", true),
+            )
 
         val df = animals.toSerializableDataFrame(spark)
         df.show(false)
@@ -193,24 +205,28 @@ class SerializationE2ETest : SparkTestBase() {
 
     @Test
     fun `test complex nested structure`() {
-        val company = Company(
-            name = "TechCorp",
-            departments = listOf(
-                Department(
-                    name = "Engineering",
-                    employees = listOf(
-                        Employee("Alice", 100000.0, Address("123 Main", "NYC", "10001")),
-                        Employee("Bob", 95000.0, Address("456 Oak", "NYC", "10002"))
-                    )
-                ),
-                Department(
-                    name = "Sales",
-                    employees = listOf(
-                        Employee("Charlie", 80000.0, Address("789 Elm", "LA", "90001"))
-                    )
-                )
+        val company =
+            Company(
+                name = "TechCorp",
+                departments =
+                    listOf(
+                        Department(
+                            name = "Engineering",
+                            employees =
+                                listOf(
+                                    Employee("Alice", 100000.0, Address("123 Main", "NYC", "10001")),
+                                    Employee("Bob", 95000.0, Address("456 Oak", "NYC", "10002")),
+                                ),
+                        ),
+                        Department(
+                            name = "Sales",
+                            employees =
+                                listOf(
+                                    Employee("Charlie", 80000.0, Address("789 Elm", "LA", "90001")),
+                                ),
+                        ),
+                    ),
             )
-        )
 
         val df = listOf(company).toSerializableDataFrame(spark)
         df.show(false)
@@ -229,11 +245,12 @@ class SerializationE2ETest : SparkTestBase() {
 
     @Test
     fun `test nullable fields DataFrame operations`() {
-        val people = listOf(
-            NullableFields("Alice", 30, "alice@example.com"),
-            NullableFields("Bob", null, null),
-            NullableFields("Charlie", 35, null)
-        )
+        val people =
+            listOf(
+                NullableFields("Alice", 30, "alice@example.com"),
+                NullableFields("Bob", null, null),
+                NullableFields("Charlie", 35, null),
+            )
 
         val df = people.toSerializableDataFrame(spark)
         df.show()
@@ -249,12 +266,13 @@ class SerializationE2ETest : SparkTestBase() {
 
     @Test
     fun `test aggregation operations`() {
-        val people = listOf(
-            SimplePerson("Alice", 30),
-            SimplePerson("Bob", 25),
-            SimplePerson("Charlie", 35),
-            SimplePerson("David", 25)
-        )
+        val people =
+            listOf(
+                SimplePerson("Alice", 30),
+                SimplePerson("Bob", 25),
+                SimplePerson("Charlie", 35),
+                SimplePerson("David", 25),
+            )
 
         val df = people.toSerializableDataFrame(spark)
 
@@ -266,7 +284,7 @@ class SerializationE2ETest : SparkTestBase() {
         val counts = df.groupBy("age").count()
         counts.show()
 
-        Assertions.assertEquals(3, counts.count())
+        assertEquals(3, counts.count())
     }
 
     @Test
@@ -274,7 +292,7 @@ class SerializationE2ETest : SparkTestBase() {
         val emptyList = emptyList<SimplePerson>()
         val df = emptyList.toSerializableDataFrame(spark)
 
-        Assertions.assertEquals(0, df.count())
+        assertEquals(0, df.count())
 
         val result = df.toSerializableKotlinList<SimplePerson>()
         assertTrue(result.isEmpty())
@@ -283,13 +301,14 @@ class SerializationE2ETest : SparkTestBase() {
     @Test
     fun `test large dataset`() {
         // Create a larger dataset
-        val people = (1..1000).map { i ->
-            SimplePerson("Person$i", 20 + (i % 50))
-        }
+        val people =
+            (1..1000).map { i ->
+                SimplePerson("Person$i", 20 + (i % 50))
+            }
 
         val df = people.toSerializableDataFrame(spark)
 
-        Assertions.assertEquals(1000, df.count())
+        assertEquals(1000, df.count())
 
         // Perform some operations
         val over30 = df.filter(col("age").gt(30))
@@ -300,18 +319,19 @@ class SerializationE2ETest : SparkTestBase() {
 
     @Test
     fun `test collection types with DataFrame`() {
-        val data = listOf(
-            CollectionTypes(
-                tags = listOf("kotlin", "spark"),
-                scores = mapOf("test1" to 95, "test2" to 88),
-                numbers = listOf(1, 2, 3)
-            ),
-            CollectionTypes(
-                tags = listOf("scala", "java"),
-                scores = mapOf("test1" to 92),
-                numbers = listOf(4, 5)
+        val data =
+            listOf(
+                CollectionTypes(
+                    tags = listOf("kotlin", "spark"),
+                    scores = mapOf("test1" to 95, "test2" to 88),
+                    numbers = listOf(1, 2, 3),
+                ),
+                CollectionTypes(
+                    tags = listOf("scala", "java"),
+                    scores = mapOf("test1" to 92),
+                    numbers = listOf(4, 5),
+                ),
             )
-        )
 
         val df = data.toSerializableDataFrame(spark)
         df.show(false)
@@ -321,24 +341,25 @@ class SerializationE2ETest : SparkTestBase() {
 
         assertEquals(2, result.size)
         assertEquals(listOf("kotlin", "spark"), result[0].tags)
-        Assertions.assertEquals(95, result[0].scores["test1"])
+        assertEquals(95, result[0].scores["test1"])
         assertEquals(listOf(1, 2, 3), result[0].numbers)
     }
 
     @Test
     fun `test datetime types serialization`() {
-        val events = listOf(
-            EventWithDates(
-                title = "Conference",
-                eventDate = LocalDate.parse("2024-12-01"),
-                timestamp = Instant.parse("2024-12-01T10:00:00Z")
-            ),
-            EventWithDates(
-                title = "Workshop",
-                eventDate = LocalDate.parse("2024-12-15"),
-                timestamp = Instant.parse("2024-12-15T14:30:00Z")
+        val events =
+            listOf(
+                EventWithDates(
+                    title = "Conference",
+                    eventDate = LocalDate.parse("2024-12-01"),
+                    timestamp = Instant.parse("2024-12-01T10:00:00Z"),
+                ),
+                EventWithDates(
+                    title = "Workshop",
+                    eventDate = LocalDate.parse("2024-12-15"),
+                    timestamp = Instant.parse("2024-12-15T14:30:00Z"),
+                ),
             )
-        )
 
         val df = events.toSerializableDataFrame(spark)
         df.show(false)
@@ -354,15 +375,17 @@ class SerializationE2ETest : SparkTestBase() {
 
     @Test
     fun `test zoo with polymorphic animals`() {
-        val zoo = Zoo(
-            location = "Central Park Zoo",
-            animals = listOf(
-                Dog("Max", "Labrador"),
-                Cat("Luna", "Black"),
-                Bird("Rio", true),
-                Dog("Charlie", "Beagle")
+        val zoo =
+            Zoo(
+                location = "Central Park Zoo",
+                animals =
+                    listOf(
+                        Dog("Max", "Labrador"),
+                        Cat("Luna", "Black"),
+                        Bird("Rio", true),
+                        Dog("Charlie", "Beagle"),
+                    ),
             )
-        )
 
         val df = listOf(zoo).toSerializableDataFrame(spark)
         df.show(false)
@@ -396,8 +419,8 @@ class SerializationE2ETest : SparkTestBase() {
         val df2 = people2.toSerializableDataFrame(spark)
 
         // Both should work correctly
-        Assertions.assertEquals(1, df1.count())
-        Assertions.assertEquals(1, df2.count())
+        assertEquals(1, df1.count())
+        assertEquals(1, df2.count())
 
         val result1 = df1.toSerializableKotlinList<SimplePerson>()
         val result2 = df2.toSerializableKotlinList<SimplePerson>()

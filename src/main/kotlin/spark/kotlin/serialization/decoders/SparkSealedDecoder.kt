@@ -26,17 +26,15 @@ import org.apache.spark.sql.Row
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkSealedDecoder(
     private val row: Row,
-    override val serializersModule: SerializersModule
+    override val serializersModule: SerializersModule,
 ) : AbstractDecoder() {
-
     private var elementIndex = 0
 
-    override fun decodeElementIndex(descriptor: SerialDescriptor): Int {
-        return when {
+    override fun decodeElementIndex(descriptor: SerialDescriptor): Int =
+        when {
             elementIndex < descriptor.elementsCount -> elementIndex++
             else -> CompositeDecoder.DECODE_DONE
         }
-    }
 
     override fun decodeString(): String {
         // _type discriminator is always at column 0
@@ -64,37 +62,45 @@ internal class SparkSealedDecoder(
 internal class SparkSealedSubtypeDecoder(
     private val row: Row,
     private val subtypeDescriptor: SerialDescriptor,
-    override val serializersModule: SerializersModule
+    override val serializersModule: SerializersModule,
 ) : AbstractDecoder() {
-
     private var currentElementIndex = 0
 
     // Map subtype field index → flat row column index (by field name lookup)
-    private val fieldColumnIndices: IntArray = IntArray(subtypeDescriptor.elementsCount) { i ->
-        row.fieldIndex(subtypeDescriptor.getElementName(i))
-    }
+    private val fieldColumnIndices: IntArray =
+        IntArray(subtypeDescriptor.elementsCount) { i ->
+            row.fieldIndex(subtypeDescriptor.getElementName(i))
+        }
 
-    override fun decodeElementIndex(descriptor: SerialDescriptor): Int {
-        return if (currentElementIndex < descriptor.elementsCount) {
+    override fun decodeElementIndex(descriptor: SerialDescriptor): Int =
+        if (currentElementIndex < descriptor.elementsCount) {
             currentElementIndex++
         } else {
             CompositeDecoder.DECODE_DONE
         }
-    }
 
     private fun col() = fieldColumnIndices[currentElementIndex - 1]
 
     override fun decodeBoolean(): Boolean = row.getBoolean(col())
+
     override fun decodeByte(): Byte = row.getByte(col())
+
     override fun decodeShort(): Short = row.getShort(col())
+
     override fun decodeInt(): Int = row.getInt(col())
+
     override fun decodeLong(): Long = row.getLong(col())
+
     override fun decodeFloat(): Float = row.getFloat(col())
+
     override fun decodeDouble(): Double = row.getDouble(col())
+
     override fun decodeChar(): Char = row.getString(col()).first()
+
     override fun decodeString(): String = row.getString(col())
 
     override fun decodeNotNullMark(): Boolean = !row.isNullAt(col())
+
     override fun decodeNull(): Nothing? = null
 
     override fun decodeEnum(enumDescriptor: SerialDescriptor): Int {
@@ -105,21 +111,25 @@ internal class SparkSealedSubtypeDecoder(
     }
 
     @Suppress("UNCHECKED_CAST")
-    override fun <T> decodeSerializableValue(deserializer: DeserializationStrategy<T>): T {
-        return when (deserializer.descriptor.serialName) {
+    override fun <T> decodeSerializableValue(deserializer: DeserializationStrategy<T>): T =
+        when (deserializer.descriptor.serialName) {
             "kotlinx.datetime.LocalDate" -> {
                 val date = row.getDate(col())
                 LocalDate.parse(date.toString()) as T
             }
+
             "kotlinx.datetime.Instant" -> {
                 val timestamp = row.getTimestamp(col())
                 timestamp.toInstant().toKotlinInstant() as T
             }
-            else -> super.decodeSerializableValue(deserializer)
+
+            else -> {
+                super.decodeSerializableValue(deserializer)
+            }
         }
-    }
 
     // Nested structures within sealed subtype fields are not yet supported
     override fun beginStructure(descriptor: SerialDescriptor): CompositeDecoder = this
-    override fun endStructure(descriptor: SerialDescriptor) {}
+
+    override fun endStructure(descriptor: SerialDescriptor) = Unit
 }

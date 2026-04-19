@@ -3,7 +3,6 @@ package classes
 import org.junit.jupiter.api.Test
 
 class IdiomaticNestedClassTest {
-
     @Test
     fun `test nested class`() {
         val nested = IdiomaticOuterClass.Nested()

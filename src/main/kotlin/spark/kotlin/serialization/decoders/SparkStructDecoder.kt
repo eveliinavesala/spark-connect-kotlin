@@ -20,9 +20,12 @@ import org.apache.spark.sql.types.StructType
  * fields using the same name-based column resolution as [SparkRowDecoder].
  *
  * Schema resolution for column mapping:
- * 1. `struct.schema()` — available when the inner row is a [org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema].
- * 2. Parent row field type — `row.schema().fields()[fieldIndex].dataType()` cast to [org.apache.spark.sql.types.StructType],
- *    used when the inner row is a plain [org.apache.spark.sql.catalyst.expressions.GenericRow] produced by [spark.kotlin.serialization.encoders.SparkStructEncoder].
+ * 1. `struct.schema()` — available when the inner row is a
+ *    [org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema].
+ * 2. Parent row field type — `row.schema().fields()[fieldIndex].dataType()` cast to
+ *    [org.apache.spark.sql.types.StructType], used when the inner row is a plain
+ *    [org.apache.spark.sql.catalyst.expressions.GenericRow] produced by
+ *    [spark.kotlin.serialization.encoders.SparkStructEncoder].
  * 3. Positional fallback — identity mapping, used when neither schema source is available.
  *
  * Nested lists, maps, and further structs are delegated to [SparkListDecoder],
@@ -32,9 +35,8 @@ import org.apache.spark.sql.types.StructType
 internal class SparkStructDecoder(
     private val row: Row,
     private val fieldIndex: Int,
-    override val serializersModule: SerializersModule
+    override val serializersModule: SerializersModule,
 ) : AbstractDecoder() {
-
     private val struct: Row by lazy { row.getStruct(fieldIndex) }
 
     // Name-resolved column index map — same approach as SparkRowDecoder.
@@ -47,15 +49,27 @@ internal class SparkStructDecoder(
         // struct.schema() is null for GenericRow (e.g. produced by SparkStructEncoder).
         // In that case, derive the nested struct's schema from the parent row's field type.
         // Fall back to positional mapping if no schema is available (maintains round-trip correctness).
-        val schema: StructType? = struct.schema()
-            ?: (row.schema()?.fields()?.getOrNull(fieldIndex)?.dataType() as? StructType)
-        columnIndexMap = if (schema != null) {
-            IntArray(descriptor.elementsCount) { i ->
-                try { schema.fieldIndex(descriptor.getElementName(i)) } catch (_: IllegalArgumentException) { -1 }
+        val schema: StructType? =
+            struct.schema()
+                ?: (
+                    row
+                        .schema()
+                        ?.fields()
+                        ?.getOrNull(fieldIndex)
+                        ?.dataType() as? StructType
+                )
+        columnIndexMap =
+            if (schema != null) {
+                IntArray(descriptor.elementsCount) { i ->
+                    try {
+                        schema.fieldIndex(descriptor.getElementName(i))
+                    } catch (_: IllegalArgumentException) {
+                        -1
+                    }
+                }
+            } else {
+                IntArray(descriptor.elementsCount) { it } // positional fallback
             }
-        } else {
-            IntArray(descriptor.elementsCount) { it }  // positional fallback
-        }
     }
 
     override fun decodeElementIndex(descriptor: SerialDescriptor): Int {
@@ -73,16 +87,25 @@ internal class SparkStructDecoder(
 
     // Primitive decoding from nested struct — name-resolved, not positional
     override fun decodeBoolean(): Boolean = struct.getBoolean(resolvedColumnIndex)
+
     override fun decodeByte(): Byte = struct.getByte(resolvedColumnIndex)
+
     override fun decodeShort(): Short = struct.getShort(resolvedColumnIndex)
+
     override fun decodeInt(): Int = struct.getInt(resolvedColumnIndex)
+
     override fun decodeLong(): Long = struct.getLong(resolvedColumnIndex)
+
     override fun decodeFloat(): Float = struct.getFloat(resolvedColumnIndex)
+
     override fun decodeDouble(): Double = struct.getDouble(resolvedColumnIndex)
+
     override fun decodeChar(): Char = struct.getString(resolvedColumnIndex).first()
+
     override fun decodeString(): String = struct.getString(resolvedColumnIndex)
 
     override fun decodeNotNullMark(): Boolean = !struct.isNullAt(resolvedColumnIndex)
+
     override fun decodeNull(): Nothing? = null
 
     override fun decodeEnum(enumDescriptor: SerialDescriptor): Int {
@@ -93,35 +116,41 @@ internal class SparkStructDecoder(
     }
 
     // Nested structures
-    override fun beginStructure(descriptor: SerialDescriptor): CompositeDecoder {
-        return when (descriptor.kind) {
+    override fun beginStructure(descriptor: SerialDescriptor): CompositeDecoder =
+        when (descriptor.kind) {
             StructureKind.LIST -> {
                 // getList returns a Scala Seq wrapped as Java List - convert to a proper Kotlin list
                 val sparkList = struct.getList<Any>(resolvedColumnIndex)
                 val kotlinList = sparkList.toList()
                 SparkListDecoder(kotlinList, serializersModule)
             }
+
             StructureKind.MAP -> {
                 val map = struct.getJavaMap<Any, Any>(resolvedColumnIndex)
                 SparkMapDecoder(map, serializersModule)
             }
-            else -> SparkStructDecoder(struct, resolvedColumnIndex, serializersModule)
+
+            else -> {
+                SparkStructDecoder(struct, resolvedColumnIndex, serializersModule)
+            }
         }
-    }
 
     // Handle special types
     @Suppress("UNCHECKED_CAST")
-    override fun <T> decodeSerializableValue(deserializer: DeserializationStrategy<T>): T {
-        return when (deserializer.descriptor.serialName) {
+    override fun <T> decodeSerializableValue(deserializer: DeserializationStrategy<T>): T =
+        when (deserializer.descriptor.serialName) {
             "kotlinx.datetime.LocalDate" -> {
                 val date = struct.getDate(resolvedColumnIndex)
                 LocalDate.parse(date.toString()) as T
             }
+
             "kotlinx.datetime.Instant" -> {
                 val timestamp = struct.getTimestamp(resolvedColumnIndex)
                 timestamp.toInstant().toKotlinInstant() as T
             }
-            else -> super.decodeSerializableValue(deserializer)
+
+            else -> {
+                super.decodeSerializableValue(deserializer)
+            }
         }
-    }
 }

@@ -1,15 +1,16 @@
 package spark.kotlin.reflect
 
 import classes.SparkTestBase
-import spark.kotlin.dsl.selectTyped
-import spark.kotlin.reflect.toDataFrame
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import spark.kotlin.dsl.selectTyped
 
 class RefinementTest : SparkTestBase() {
-
-    data class Person(val name: String, val age: Int)
+    data class Person(
+        val name: String,
+        val age: Int,
+    )
 
     @Test
     fun `toDataFrame on empty list should produce a DataFrame with a schema`() {

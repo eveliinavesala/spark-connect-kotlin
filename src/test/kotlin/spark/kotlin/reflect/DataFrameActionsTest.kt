@@ -6,34 +6,48 @@ import org.apache.spark.api.java.function.ForeachPartitionFunction
 import org.apache.spark.api.java.function.ReduceFunction
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.Row
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertDoesNotThrow
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import spark.kotlin.reflect.toDataFrame
-import spark.kotlin.reflect.toKotlinList
 
 class DataFrameActionsTest : SparkTestBase() {
-
-    data class Person(var name: String = "", var age: Int = 0)
+    data class Person(
+        var name: String = "",
+        var age: Int = 0,
+    )
 
     private lateinit var df: Dataset<Row>
     private lateinit var data: List<Person>
 
     companion object {
         // Define UDFs in a static context to ensure they are serializable
-        val oldestRowFunc = ReduceFunction<Row> { r1, r2 -> if (r1.getInt(r1.fieldIndex("age")) > r2.getInt(r2.fieldIndex("age"))) r1 else r2 }
+        val oldestRowFunc =
+            ReduceFunction<Row> { r1, r2 ->
+                if (r1.getInt(r1.fieldIndex("age")) >
+                    r2.getInt(r2.fieldIndex("age"))
+                ) {
+                    r1
+                } else {
+                    r2
+                }
+            }
         val namePrinter = ForeachFunction<Row> { row -> println(row.getAs<String>("name")) }
-        val partitionPrinter = ForeachPartitionFunction<Row> { iterator -> iterator.forEach { row -> println(row.getAs<String>("name")) } }
+        val partitionPrinter =
+            ForeachPartitionFunction<Row> { iterator -> iterator.forEach { row -> println(row.getAs<String>("name")) } }
     }
 
     @BeforeEach
     fun setup() {
-        data = listOf(
-            Person("Alice", 30),
-            Person("Bob", 40),
-            Person("Charlie", 25),
-            Person("David", 35)
-        )
+        data =
+            listOf(
+                Person("Alice", 30),
+                Person("Bob", 40),
+                Person("Charlie", 25),
+                Person("David", 35),
+            )
         df = data.toDataFrame(spark)
     }
 
@@ -47,7 +61,7 @@ class DataFrameActionsTest : SparkTestBase() {
 
         assertEquals(4, collectedAsArray.size)
         assertEquals(4, collectedAsList.size)
-        
+
         val kotlinList = df.toKotlinList<Person>()
         assertTrue(kotlinList.containsAll(data))
     }
@@ -74,7 +88,7 @@ class DataFrameActionsTest : SparkTestBase() {
         assertEquals(2, takenArray.size)
         assertEquals("Bob", takenList[1].getAs<String>("name"))
     }
-    
+
     @Test
     @Suppress("UNCHECKED_CAST")
     fun `tail() should return the last n rows`() {
@@ -89,7 +103,7 @@ class DataFrameActionsTest : SparkTestBase() {
         assertTrue(spark.emptyDataFrame().isEmpty)
         assertFalse(df.isEmpty)
     }
-    
+
     @Test
     fun `show() should display the dataframe without error`() {
         df.show()

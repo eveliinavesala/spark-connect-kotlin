@@ -1,4 +1,6 @@
 package classes
 
 @JvmInline
-value class IdiomaticValueClass(val value: String)
+value class IdiomaticValueClass(
+    val value: String,
+)

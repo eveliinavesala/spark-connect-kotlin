@@ -20,7 +20,7 @@ import spark.kotlin.serialization.decoders.SparkRowDecoder
  * Instances are obtained through [SerializationCache.getSparkDeserializer].
  */
 internal class SparkDeserializer<T>(
-    private val serializer: KSerializer<T>
+    private val serializer: KSerializer<T>,
 ) {
     /**
      * Decodes [row] to [T] using [SparkRowDecoder].
@@ -29,7 +29,10 @@ internal class SparkDeserializer<T>(
      *   [SparkRowDecoder] skips its own schema scan, reducing per-row overhead in batch decoding.
      *   Construct this array once via `schema.fieldIndex()` over the DataFrame schema.
      */
-    fun deserialize(row: Row, preBuiltColumnIndexMap: IntArray? = null): T {
+    fun deserialize(
+        row: Row,
+        preBuiltColumnIndexMap: IntArray? = null,
+    ): T {
         val decoder = SparkRowDecoder(row, preBuiltColumnIndexMap = preBuiltColumnIndexMap)
         return decoder.decodeSerializableValue(serializer)
     }

@@ -1,3 +1,11 @@
+/**
+ * [AbstractDecoder] implementations for Spark collection fields.
+ *
+ * Spark returns list fields as Scala [scala.collection.Seq] and map fields as Scala
+ * [scala.collection.Map]. Both types are obtained from a parent [Row] via `getList()` /
+ * `getJavaMap()` (converting to Java types) before being wrapped by these decoders.
+ */
+
 package spark.kotlin.serialization.decoders
 
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -10,14 +18,6 @@ import kotlinx.serialization.encoding.CompositeDecoder
 import kotlinx.serialization.modules.SerializersModule
 import org.apache.spark.sql.Row
 
-/**
- * [AbstractDecoder] implementations for Spark collection fields.
- *
- * Spark returns list fields as Scala [scala.collection.Seq] and map fields as Scala
- * [scala.collection.Map]. Both types are obtained from a parent [Row] via `getList()` /
- * `getJavaMap()` (converting to Java types) before being wrapped by these decoders.
- */
-
 // ============================================================================
 // List Decoder
 // ============================================================================
@@ -29,21 +29,20 @@ import org.apache.spark.sql.Row
  * are consumed, then [CompositeDecoder.DECODE_DONE]. Struct elements are delegated to
  * [SparkRowDecoder]; sealed elements to [SparkSealedDecoder].
  */
+
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkListDecoder(
     private val list: List<Any?>,
-    override val serializersModule: SerializersModule
+    override val serializersModule: SerializersModule,
 ) : AbstractDecoder() {
-
     private var currentIndex = 0
 
-    override fun decodeElementIndex(descriptor: SerialDescriptor): Int {
-        return if (currentIndex < list.size) {
+    override fun decodeElementIndex(descriptor: SerialDescriptor): Int =
+        if (currentIndex < list.size) {
             currentIndex++
         } else {
             CompositeDecoder.DECODE_DONE
         }
-    }
 
     override fun decodeCollectionSize(descriptor: SerialDescriptor): Int = list.size
 
@@ -51,16 +50,25 @@ internal class SparkListDecoder(
 
     // Element decoding
     override fun decodeBoolean(): Boolean = getValue() as Boolean
+
     override fun decodeByte(): Byte = getValue() as Byte
+
     override fun decodeShort(): Short = getValue() as Short
+
     override fun decodeInt(): Int = getValue() as Int
+
     override fun decodeLong(): Long = getValue() as Long
+
     override fun decodeFloat(): Float = getValue() as Float
+
     override fun decodeDouble(): Double = getValue() as Double
+
     override fun decodeChar(): Char = (getValue() as String).first()
+
     override fun decodeString(): String = getValue() as String
 
     override fun decodeNotNullMark(): Boolean = getValue() != null
+
     override fun decodeNull(): Nothing? = null
 
     override fun decodeEnum(enumDescriptor: SerialDescriptor): Int {
@@ -70,13 +78,12 @@ internal class SparkListDecoder(
         } ?: throw SerializationException("Unknown enum value: $enumName")
     }
 
-    override fun beginStructure(descriptor: SerialDescriptor): CompositeDecoder {
-        return when (descriptor.kind) {
+    override fun beginStructure(descriptor: SerialDescriptor): CompositeDecoder =
+        when (descriptor.kind) {
             StructureKind.CLASS -> SparkRowDecoder(getValue() as Row, serializersModule)
             PolymorphicKind.SEALED -> SparkSealedDecoder(getValue() as Row, serializersModule)
             else -> this
         }
-    }
 }
 
 // ============================================================================
@@ -91,23 +98,22 @@ internal class SparkListDecoder(
  * between key and value using the [isKey] flag. Only primitive keys and values are supported;
  * nested struct map values are not handled.
  */
+
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkMapDecoder(
     private val map: Map<Any?, Any?>,
-    override val serializersModule: SerializersModule
+    override val serializersModule: SerializersModule,
 ) : AbstractDecoder() {
-
     private val entries = map.entries.toList()
     private var currentIndex = 0
     private var isKey = true
 
-    override fun decodeElementIndex(descriptor: SerialDescriptor): Int {
-        return if (currentIndex < entries.size * 2) {
+    override fun decodeElementIndex(descriptor: SerialDescriptor): Int =
+        if (currentIndex < entries.size * 2) {
             currentIndex++
         } else {
             CompositeDecoder.DECODE_DONE
         }
-    }
 
     override fun decodeCollectionSize(descriptor: SerialDescriptor): Int = map.size
 
@@ -122,15 +128,24 @@ internal class SparkMapDecoder(
 
     // Element decoding - alternates between keys and values
     override fun decodeBoolean(): Boolean = getValue() as Boolean
+
     override fun decodeByte(): Byte = getValue() as Byte
+
     override fun decodeShort(): Short = getValue() as Short
+
     override fun decodeInt(): Int = getValue() as Int
+
     override fun decodeLong(): Long = getValue() as Long
+
     override fun decodeFloat(): Float = getValue() as Float
+
     override fun decodeDouble(): Double = getValue() as Double
+
     override fun decodeChar(): Char = (getValue() as String).first()
+
     override fun decodeString(): String = getValue() as String
 
     override fun decodeNotNullMark(): Boolean = getValue() != null
+
     override fun decodeNull(): Nothing? = null
 }

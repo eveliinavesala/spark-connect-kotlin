@@ -8,7 +8,8 @@ public class Person implements Serializable {
     private int age;
     private int cityId;
 
-    public Person() {}
+    public Person() {
+    }
 
     public Person(String name, int age) {
         this(name, age, 0);
@@ -20,12 +21,29 @@ public class Person implements Serializable {
         this.cityId = cityId;
     }
 
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
-    public int getAge() { return age; }
-    public void setAge(int age) { this.age = age; }
-    public int getCityId() { return cityId; }
-    public void setCityId(int cityId) { this.cityId = cityId; }
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public int getAge() {
+        return age;
+    }
+
+    public void setAge(int age) {
+        this.age = age;
+    }
+
+    public int getCityId() {
+        return cityId;
+    }
+
+    public void setCityId(int cityId) {
+        this.cityId = cityId;
+    }
 
     @Override
     public boolean equals(Object o) {

@@ -2,7 +2,12 @@ package types
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.RowFactory
-import org.apache.spark.sql.types.*
+import org.apache.spark.sql.types.DataType
+import org.apache.spark.sql.types.DataTypes
+import org.apache.spark.sql.types.Metadata
+import org.apache.spark.sql.types.StructField
+import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.UserDefinedType
 
 /**
  * The User-Defined Type (UDT) for the Point class.
@@ -10,13 +15,14 @@ import org.apache.spark.sql.types.*
  * to and from its internal Row representation.
  */
 class PointUDT : UserDefinedType<Point>() {
-
     override fun sqlType(): DataType {
         // A Point is represented internally as a struct with two doubles.
-        return StructType(arrayOf(
-            StructField("x", DataTypes.DoubleType, false, Metadata.empty()),
-            StructField("y", DataTypes.DoubleType, false, Metadata.empty())
-        ))
+        return StructType(
+            arrayOf(
+                StructField("x", DataTypes.DoubleType, false, Metadata.empty()),
+                StructField("y", DataTypes.DoubleType, false, Metadata.empty()),
+            ),
+        )
     }
 
     override fun serialize(obj: Point): Any {
@@ -30,7 +36,5 @@ class PointUDT : UserDefinedType<Point>() {
         return Point(row.getDouble(0), row.getDouble(1))
     }
 
-    override fun userClass(): Class<Point> {
-        return Point::class.java
-    }
+    override fun userClass(): Class<Point> = Point::class.java
 }

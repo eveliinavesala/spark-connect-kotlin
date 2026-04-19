@@ -5,7 +5,7 @@ import org.apache.spark.sql.Row
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.types.StructType
 import kotlin.reflect.KType
-import kotlin.reflect.full.*
+import kotlin.reflect.full.createType
 import kotlin.reflect.jvm.jvmErasure
 import kotlin.reflect.typeOf
 
@@ -28,9 +28,10 @@ import kotlin.reflect.typeOf
  *   or field ordering explicitly.
  * @return A [Dataset]<[Row]> whose schema matches [T] (or the supplied [schema]).
  */
-inline fun <reified T : Any> List<T>.toDataFrame(spark: SparkSession, schema: StructType? = null): Dataset<Row> {
-    return spark.createDataFrameFromKotlinList(this, typeOf<T>(), schema)
-}
+inline fun <reified T : Any> List<T>.toDataFrame(
+    spark: SparkSession,
+    schema: StructType? = null,
+): Dataset<Row> = spark.createDataFrameFromKotlinList(this, typeOf<T>(), schema)
 
 /**
  * Deserializes each [Row] in this [Dataset] into an instance of [T] using reflection.
@@ -44,9 +45,7 @@ inline fun <reified T : Any> List<T>.toDataFrame(spark: SparkSession, schema: St
  *
  * @return A [List]<[T]> with one element per row in the dataset.
  */
-inline fun <reified T : Any> Dataset<Row>.toKotlinList(): List<T> {
-    return this.toKotlinListFromDataFrame(typeOf<T>())
-}
+inline fun <reified T : Any> Dataset<Row>.toKotlinList(): List<T> = this.toKotlinListFromDataFrame(typeOf<T>())
 
 /**
  * Non-inline entry point for [toDataFrame] when the [KType] is already available at the call site.
@@ -54,9 +53,11 @@ inline fun <reified T : Any> Dataset<Row>.toKotlinList(): List<T> {
  * Delegates to [createDataFrameViaReflectionInternal]. Prefer the inline [toDataFrame] extension
  * when [T] is a reified type parameter.
  */
-fun <T : Any> SparkSession.createDataFrameFromKotlinList(data: List<T>, kType: KType, schema: StructType? = null): Dataset<Row> {
-    return createDataFrameViaReflectionInternal(data, kType, schema)
-}
+fun <T : Any> SparkSession.createDataFrameFromKotlinList(
+    data: List<T>,
+    kType: KType,
+    schema: StructType? = null,
+): Dataset<Row> = createDataFrameViaReflectionInternal(data, kType, schema)
 
 /**
  * Non-inline entry point for [toKotlinList] when the [KType] is already available at the call site.
@@ -64,9 +65,7 @@ fun <T : Any> SparkSession.createDataFrameFromKotlinList(data: List<T>, kType: K
  * Delegates to [toKotlinClassListInternal]. Prefer the inline [toKotlinList] extension when [T]
  * is a reified type parameter.
  */
-fun <T : Any> Dataset<Row>.toKotlinListFromDataFrame(kType: KType): List<T> {
-    return toKotlinClassListInternal<T>(kType)
-}
+fun <T : Any> Dataset<Row>.toKotlinListFromDataFrame(kType: KType): List<T> = toKotlinClassListInternal<T>(kType)
 
 /**
  * Returns the Spark [StructType] inferred from [kType] via [ReflectionCache].
@@ -74,15 +73,17 @@ fun <T : Any> Dataset<Row>.toKotlinListFromDataFrame(kType: KType): List<T> {
  * The result is cached; subsequent calls for the same [KType] return the cached value.
  * Useful for schema validation, DDL generation, or constructing a DataFrame manually.
  */
-fun getSparkSchema(kType: KType): StructType {
-    return ReflectionCache.getSchema(kType)
-}
+fun getSparkSchema(kType: KType): StructType = ReflectionCache.getSchema(kType)
 
 // ============================================================================
 // Internal entry points
 // ============================================================================
 
-internal fun SparkSession.createDataFrameViaReflectionInternal(data: List<Any>, kType: KType, schema: StructType? = null): Dataset<Row> {
+internal fun SparkSession.createDataFrameViaReflectionInternal(
+    data: List<Any>,
+    kType: KType,
+    schema: StructType? = null,
+): Dataset<Row> {
     val resolvedSchema = schema ?: ReflectionCache.getSchema(kType)
     if (data.isEmpty()) {
         return this.createDataFrame(emptyList<Row>(), resolvedSchema)
@@ -101,8 +102,9 @@ internal fun <T : Any> Dataset<Row>.toKotlinClassListInternal(kType: KType): Lis
         val typeColumnIndex = this.schema().fieldIndex("_type")
         return collectedRows.map { row ->
             val typeName = row.get(typeColumnIndex) as String
-            val subClass = kClass.allLeafSubclasses().find { it.simpleName == typeName }
-                ?: error("Unknown subclass type '$typeName'")
+            val subClass =
+                kClass.allLeafSubclasses().find { it.simpleName == typeName }
+                    ?: error("Unknown subclass type '$typeName'")
             @Suppress("UNCHECKED_CAST")
             ReflectionCache.getDeserializer<Any>(subClass.createType()).deserialize(row) as T
         }

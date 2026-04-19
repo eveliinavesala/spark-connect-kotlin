@@ -60,14 +60,20 @@ infix fun Column.or(other: Column): Column = this.or(other)
 /**
  * Prints the first [n] rows without truncating values. Delegates to [Dataset.show].
  */
-fun <T> Dataset<T>.showPretty(n: Int = 20, truncate: Boolean = false) = this.show(n, truncate)
+fun <T> Dataset<T>.showPretty(
+    n: Int = 20,
+    truncate: Boolean = false,
+) = this.show(n, truncate)
 
 /**
  * Prints the first [n] rows and returns `this` for pipeline chaining.
  *
  * Useful for inspecting an intermediate [Dataset] without breaking a method chain.
  */
-fun <T> Dataset<T>.showDS(n: Int = 20, truncate: Boolean = false): Dataset<T> {
+fun <T> Dataset<T>.showDS(
+    n: Int = 20,
+    truncate: Boolean = false,
+): Dataset<T> {
     this.show(n, truncate)
     return this
 }
@@ -108,9 +114,8 @@ fun Dataset<Row>.transformDF(t: (Dataset<Row>) -> Dataset<Row>): Dataset<Row> {
  *   of the same name in the DataFrame.
  * @return A new [Dataset]<[Row]> containing only the selected columns.
  */
-inline fun <reified T : Any> Dataset<Row>.selectTyped(
-    vararg properties: KProperty1<T, *>
-): Dataset<Row> {
+@Suppress("SpreadOperator")
+inline fun <reified T : Any> Dataset<Row>.selectTyped(vararg properties: KProperty1<T, *>): Dataset<Row> {
     val columns = properties.map { col(it.name) }.toTypedArray()
     return this.select(*columns)
 }
@@ -124,5 +129,7 @@ inline fun <reified T : Any> Dataset<Row>.selectTyped(
  *
  * Avoids a `NullPointerException` from [Row.getAs] on null fields for non-nullable [T].
  */
-inline fun <reified T> Row.getNullable(name: String): T? =
-    if (this.isNullAt(this.fieldIndex(name))) null else this.getAs<T>(name)
+inline fun <reified T> Row.getNullable(name: String): T? {
+    val idx = this.fieldIndex(name)
+    return if (this.isNullAt(idx)) null else this.getAs<T>(idx)
+}

@@ -9,7 +9,11 @@ import java.math.BigDecimal
  * V1 — stable, fully governed contract. Both backends supported.
  */
 @Serializable
-data class CustomerV1(val id: String, val name: String, val tier: String)
+data class CustomerV1(
+    val id: String,
+    val name: String,
+    val tier: String,
+)
 
 /**
  * V2 — "score" field added as non-nullable (SCD event: field added to model).
@@ -17,7 +21,12 @@ data class CustomerV1(val id: String, val name: String, val tier: String)
  * This proves the Kotlin type system is enforced — silent nulls are rejected.
  */
 @Serializable
-data class CustomerV2(val id: String, val name: String, val tier: String, val score: Int)
+data class CustomerV2(
+    val id: String,
+    val name: String,
+    val tier: String,
+    val score: Int,
+)
 
 /**
  * V3 — safe SCD migration: "score" made nullable.
@@ -25,7 +34,12 @@ data class CustomerV2(val id: String, val name: String, val tier: String, val sc
  * Both backends accept missing data once the class contract is relaxed.
  */
 @Serializable
-data class CustomerV3(val id: String, val name: String, val tier: String, val score: Int?)
+data class CustomerV3(
+    val id: String,
+    val name: String,
+    val tier: String,
+    val score: Int?,
+)
 
 // ── Type-gap models (reflection backend only) ─────────────────────────────────
 
@@ -37,7 +51,7 @@ data class CustomerV3(val id: String, val name: String, val tier: String, val sc
 data class FinancialReport(
     val id: String,
     val amount: BigDecimal,
-    val currency: String
+    val currency: String,
 )
 
 /**
@@ -47,7 +61,7 @@ data class FinancialReport(
 data class TaggedItem(
     val id: String,
     val label: String,
-    val tags: Set<String>
+    val tags: Set<String>,
 )
 
 /**
@@ -57,5 +71,5 @@ data class TaggedItem(
 data class TimeEvent(
     val id: String,
     val description: String,
-    val occurredAt: java.time.Instant
+    val occurredAt: java.time.Instant,
 )

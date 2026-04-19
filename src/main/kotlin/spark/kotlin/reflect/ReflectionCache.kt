@@ -32,15 +32,18 @@ internal object ReflectionCache {
      * because a serializer is bound to a specific schema at construction time and caching by [KType] alone
      * would produce incorrect results if the same type is used with different schemas.
      */
-    fun getSerializer(kType: KType, schema: StructType? = null): RowSerializer {
-        return if (schema != null) {
+    fun getSerializer(
+        kType: KType,
+        schema: StructType? = null,
+    ): RowSerializer =
+        if (schema != null) {
             RowSerializer.create(kType, schema)
         } else {
             serializerCache.getOrPut(kType) { RowSerializer.create(kType) }
         }
-    }
 
     /** Returns the cached [RowDeserializer] for [kType], creating it via [RowDeserializer.create] on first access. */
     @Suppress("UNCHECKED_CAST")
-    fun <T : Any> getDeserializer(kType: KType): RowDeserializer<T> = deserializerCache.getOrPut(kType) { RowDeserializer.create<T>(kType) } as RowDeserializer<T>
+    fun <T : Any> getDeserializer(kType: KType): RowDeserializer<T> =
+        deserializerCache.getOrPut(kType) { RowDeserializer.create<T>(kType) } as RowDeserializer<T>
 }

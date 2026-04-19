@@ -1,5 +1,6 @@
 package classes
 
-fun getAnonymousObject() = object {
-    val message = "Hello"
-}
+fun getAnonymousObject() =
+    object {
+        val message = "Hello"
+    }

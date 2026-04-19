@@ -1,7 +1,6 @@
 package spark.kotlin.serialization.encoders
 
 import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.AbstractEncoder
 import kotlinx.serialization.encoding.CompositeEncoder
@@ -33,19 +32,17 @@ import org.apache.spark.sql.types.StructType
 internal class SparkSealedEncoder(
     private val addToParent: (Any?) -> Unit,
     override val serializersModule: SerializersModule,
-    private val sealedSchema: StructType
+    private val sealedSchema: StructType,
 ) : AbstractEncoder() {
-
     private var typeName: String? = null
     private val capturedFields = mutableMapOf<String, Any?>()
 
     override fun encodeString(value: String) {
-        if (typeName == null) typeName = value  // first string is the type discriminator
+        if (typeName == null) typeName = value // first string is the type discriminator
     }
 
-    override fun beginStructure(descriptor: SerialDescriptor): CompositeEncoder {
-        return SparkSealedSubtypeEncoder(descriptor, capturedFields, serializersModule)
-    }
+    override fun beginStructure(descriptor: SerialDescriptor): CompositeEncoder =
+        SparkSealedSubtypeEncoder(capturedFields, serializersModule)
 
     override fun endStructure(descriptor: SerialDescriptor) {
         // Build a flat values array matching the sealed schema.
@@ -74,39 +71,68 @@ internal class SparkSealedEncoder(
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkSealedSubtypeEncoder(
-    private val subtypeDescriptor: SerialDescriptor,
     private val capturedFields: MutableMap<String, Any?>,
-    override val serializersModule: SerializersModule
+    override val serializersModule: SerializersModule,
 ) : AbstractEncoder() {
-
     private var currentFieldName: String = ""
 
-    override fun encodeElement(descriptor: SerialDescriptor, index: Int): Boolean {
+    override fun encodeElement(
+        descriptor: SerialDescriptor,
+        index: Int,
+    ): Boolean {
         currentFieldName = descriptor.getElementName(index)
         return true
     }
 
-    override fun encodeBoolean(value: Boolean) { capturedFields[currentFieldName] = value }
-    override fun encodeByte(value: Byte)       { capturedFields[currentFieldName] = value }
-    override fun encodeShort(value: Short)     { capturedFields[currentFieldName] = value }
-    override fun encodeInt(value: Int)         { capturedFields[currentFieldName] = value }
-    override fun encodeLong(value: Long)       { capturedFields[currentFieldName] = value }
-    override fun encodeFloat(value: Float)     { capturedFields[currentFieldName] = value }
-    override fun encodeDouble(value: Double)   { capturedFields[currentFieldName] = value }
-    override fun encodeChar(value: Char)       { capturedFields[currentFieldName] = value.toString() }
-    override fun encodeString(value: String)   { capturedFields[currentFieldName] = value }
-    override fun encodeNull()                  { capturedFields[currentFieldName] = null }
-
-    override fun encodeEnum(enumDescriptor: SerialDescriptor, index: Int) {
-        capturedFields[currentFieldName] = enumDescriptor.getElementName(index)
+    override fun encodeBoolean(value: Boolean) {
+        capturedFields[currentFieldName] = value
     }
 
-    override fun <T> encodeSerializableValue(serializer: SerializationStrategy<T>, value: T) {
-        super.encodeSerializableValue(serializer, value)
+    override fun encodeByte(value: Byte) {
+        capturedFields[currentFieldName] = value
+    }
+
+    override fun encodeShort(value: Short) {
+        capturedFields[currentFieldName] = value
+    }
+
+    override fun encodeInt(value: Int) {
+        capturedFields[currentFieldName] = value
+    }
+
+    override fun encodeLong(value: Long) {
+        capturedFields[currentFieldName] = value
+    }
+
+    override fun encodeFloat(value: Float) {
+        capturedFields[currentFieldName] = value
+    }
+
+    override fun encodeDouble(value: Double) {
+        capturedFields[currentFieldName] = value
+    }
+
+    override fun encodeChar(value: Char) {
+        capturedFields[currentFieldName] = value.toString()
+    }
+
+    override fun encodeString(value: String) {
+        capturedFields[currentFieldName] = value
+    }
+
+    override fun encodeNull() {
+        capturedFields[currentFieldName] = null
+    }
+
+    override fun encodeEnum(
+        enumDescriptor: SerialDescriptor,
+        index: Int,
+    ) {
+        capturedFields[currentFieldName] = enumDescriptor.getElementName(index)
     }
 
     // Nested structures within sealed subtype fields are not yet supported
     override fun beginStructure(descriptor: SerialDescriptor): CompositeEncoder = this
-    override fun endStructure(descriptor: SerialDescriptor) {}
-}
 
+    override fun endStructure(descriptor: SerialDescriptor) = Unit
+}

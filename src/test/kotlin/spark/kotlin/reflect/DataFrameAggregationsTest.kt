@@ -3,28 +3,38 @@ package spark.kotlin.reflect
 import classes.SparkTestBase
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.Row
-import org.apache.spark.sql.functions.*
-import org.junit.jupiter.api.Assertions.*
+import org.apache.spark.sql.functions.avg
+import org.apache.spark.sql.functions.count
+import org.apache.spark.sql.functions.sum
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import spark.kotlin.reflect.toDataFrame
-import spark.kotlin.reflect.toKotlinList
 
 class DataFrameAggregationsTest : SparkTestBase() {
+    data class Sale(
+        var course: String = "",
+        var city: String = "",
+        var sales: Int = 0,
+    )
 
-    data class Sale(var course: String = "", var city: String = "", var sales: Int = 0)
-    data class AggResult(var city: String = "", var `avg(sales)`: Double = 0.0, var `count(1)`: Long = 0)
+    data class AggResult(
+        var city: String = "",
+        var avgSales: Double = 0.0,
+        var countStar: Long = 0,
+    )
 
     private lateinit var df: Dataset<Row>
 
     @BeforeEach
     fun setup() {
-        val data = listOf(
-            Sale("Java", "Helsinki", 100),
-            Sale("Kotlin", "Helsinki", 150),
-            Sale("Java", "Turku", 200),
-            Sale("Kotlin", "Turku", 250)
-        )
+        val data =
+            listOf(
+                Sale("Java", "Helsinki", 100),
+                Sale("Kotlin", "Helsinki", 150),
+                Sale("Java", "Turku", 200),
+                Sale("Kotlin", "Turku", 250),
+            )
         df = data.toDataFrame(spark)
     }
 
@@ -32,14 +42,14 @@ class DataFrameAggregationsTest : SparkTestBase() {
 
     @Test
     fun `groupBy() and agg() should perform aggregations`() {
-        val grouped = df.groupBy("city").agg(avg("sales"), count("*"))
+        val grouped = df.groupBy("city").agg(avg("sales").alias("avgSales"), count("*").alias("countStar"))
         val results = grouped.toKotlinList<AggResult>()
 
         assertEquals(2, results.size)
         val helsinkiRow = results.find { it.city == "Helsinki" }
         assertNotNull(helsinkiRow)
-        assertEquals(125.0, helsinkiRow!!.`avg(sales)`, 0.001)
-        assertEquals(2L, helsinkiRow.`count(1)`)
+        assertEquals(125.0, helsinkiRow!!.avgSales, 0.001)
+        assertEquals(2L, helsinkiRow.countStar)
     }
 
     @Test

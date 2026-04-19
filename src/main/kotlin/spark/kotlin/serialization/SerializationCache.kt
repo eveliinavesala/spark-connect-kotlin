@@ -23,17 +23,15 @@ import java.util.concurrent.ConcurrentHashMap
  * would produce incorrect results if the same type is used with different schemas.
  */
 internal object SerializationCache {
-
     private val schemaCache = ConcurrentHashMap<SerialDescriptor, StructType>()
     private val serializerCache = ConcurrentHashMap<SerialDescriptor, SparkSerializer<*>>()
     private val deserializerCache = ConcurrentHashMap<SerialDescriptor, SparkDeserializer<*>>()
 
     /** Returns the cached [StructType] for [serializer], computing it via [inferSparkSchema] on first access. */
-    fun getSchema(serializer: KSerializer<*>): StructType {
-        return schemaCache.getOrPut(serializer.descriptor) {
+    fun getSchema(serializer: KSerializer<*>): StructType =
+        schemaCache.getOrPut(serializer.descriptor) {
             inferSparkSchema(serializer.descriptor)
         }
-    }
 
     /**
      * Returns the cached [SparkSerializer] for [serializer].

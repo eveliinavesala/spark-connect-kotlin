@@ -1,5 +1,5 @@
-import org.gradle.api.file.DuplicatesStrategy
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import org.gradle.api.file.DuplicatesStrategy
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -62,7 +62,9 @@ sourceSets {
     }
     create("demoTest") {
         kotlin.srcDir("src/demo/test/kotlin")
-        compileClasspath += sourceSets.main.get().output + sourceSets["demo"].output + sourceSets.test.get().output + configurations.testRuntimeClasspath.get()
+        compileClasspath +=
+            sourceSets.main.get().output + sourceSets["demo"].output + sourceSets.test.get().output +
+            configurations.testRuntimeClasspath.get()
         runtimeClasspath += output + compileClasspath
     }
 }
@@ -84,56 +86,59 @@ tasks.register<Test>("demoTest") {
     }
     jvmArgs(
         "--add-opens=java.base/java.nio=ALL-UNNAMED",
-        "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
+        "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED",
     )
 }
 
 // Notebook fat JAR — bundles main library + full runtimeClasspath (Spark Connect, Arrow, gRPC, …)
 // so notebooks only need a single @file:DependsOn. Output goes to notebooks/lib/ and is gitignored.
 // Build: ./gradlew notebookFatJar
-val notebookFatJar = tasks.register<ShadowJar>("notebookFatJar") {
-    description = "Self-contained JAR for Kotlin notebook demos. Bundles Spark Connect client and all runtime dependencies."
-    group = "build"
-    archiveBaseName.set("spark-connect-kotlin-notebook")
-    archiveClassifier.set("")
-    archiveVersion.set("")
-    destinationDirectory.set(file("notebooks/lib"))
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    from(sourceSets.main.get().output)
-    configurations = listOf(project.configurations.runtimeClasspath.get())
-    mergeServiceFiles()
-}
+val notebookFatJar =
+    tasks.register<ShadowJar>("notebookFatJar") {
+        description =
+            "Self-contained JAR for Kotlin notebook demos. Bundles Spark Connect client and all runtime dependencies."
+        group = "build"
+        archiveBaseName.set("spark-connect-kotlin-notebook")
+        archiveClassifier.set("")
+        archiveVersion.set("")
+        destinationDirectory.set(file("notebooks/lib"))
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        from(sourceSets.main.get().output)
+        configurations = listOf(project.configurations.runtimeClasspath.get())
+        mergeServiceFiles()
+    }
 
 // Optimized "test fat jar" - includes test classes but excludes provided dependencies
-val testFatJar = tasks.register<ShadowJar>("testFatJar") {
-    archiveClassifier.set("test-fat")
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    dependsOn("compileDemoKotlin", "compileDemoTestKotlin")
+val testFatJar =
+    tasks.register<ShadowJar>("testFatJar") {
+        archiveClassifier.set("test-fat")
+        duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+        dependsOn("compileDemoKotlin", "compileDemoTestKotlin")
 
-    from(sourceSets.main.get().output)
-    from(sourceSets.test.get().output)
-    from(sourceSets["demo"].output)
-    from(sourceSets["demoTest"].output)
+        from(sourceSets.main.get().output)
+        from(sourceSets.test.get().output)
+        from(sourceSets["demo"].output)
+        from(sourceSets["demoTest"].output)
 
-    configurations = listOf(project.configurations.testRuntimeClasspath.get())
+        configurations = listOf(project.configurations.testRuntimeClasspath.get())
 
-    dependencies {
-        exclude(dependency("org.apache.spark:.*"))
-        exclude(dependency("org.scala-lang:.*"))
-        exclude(dependency("org.apache.arrow:.*"))
-        exclude(dependency("org.apache.hadoop:.*"))
-        exclude(dependency("io.netty:.*"))
-        exclude(dependency("com.google.protobuf:.*"))
-        exclude(dependency("org.slf4j:.*"))
-        exclude(dependency("log4j:.*"))
-        exclude(dependency("org.apache.logging.log4j:.*"))
-        exclude(dependency("org.testcontainers:.*"))
-        exclude(dependency("org.junit.jupiter:.*"))
-        exclude(dependency("org.junit.platform:.*"))
-        exclude(dependency("org.opentest4j:.*"))
+        dependencies {
+            exclude(dependency("org.apache.spark:.*"))
+            exclude(dependency("org.scala-lang:.*"))
+            exclude(dependency("org.apache.arrow:.*"))
+            exclude(dependency("org.apache.hadoop:.*"))
+            exclude(dependency("io.netty:.*"))
+            exclude(dependency("com.google.protobuf:.*"))
+            exclude(dependency("org.slf4j:.*"))
+            exclude(dependency("log4j:.*"))
+            exclude(dependency("org.apache.logging.log4j:.*"))
+            exclude(dependency("org.testcontainers:.*"))
+            exclude(dependency("org.junit.jupiter:.*"))
+            exclude(dependency("org.junit.platform:.*"))
+            exclude(dependency("org.opentest4j:.*"))
+        }
+        mergeServiceFiles()
     }
-    mergeServiceFiles()
-}
 
 tasks.test {
     dependsOn(testFatJar)
@@ -145,7 +150,7 @@ tasks.test {
     }
     jvmArgs(
         "--add-opens=java.base/java.nio=ALL-UNNAMED",
-        "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
+        "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED",
     )
 }
 
@@ -153,7 +158,10 @@ tasks.register<Test>("benchmark") {
     description = "Runs @Tag(\"benchmark\") tests only."
     group = "verification"
     dependsOn(testFatJar)
-    testClassesDirs = sourceSets.test.get().output.classesDirs
+    testClassesDirs =
+        sourceSets.test
+            .get()
+            .output.classesDirs
     classpath = sourceSets.test.get().runtimeClasspath
     useJUnitPlatform {
         includeTags("benchmark")
@@ -163,13 +171,13 @@ tasks.register<Test>("benchmark") {
     // Gradle from forking a new JVM between test classes, which would create a
     // second SparkContainerManager instance and a second Spark container.
     maxParallelForks = 1
-    setForkEvery(0)
+    forkEvery = 0
     System.getenv("DOCKER_HOST")?.let {
         environment("DOCKER_HOST", it)
     }
     jvmArgs(
         "--add-opens=java.base/java.nio=ALL-UNNAMED",
-        "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
+        "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED",
     )
     testLogging {
         events("passed", "failed")
@@ -187,6 +195,7 @@ kotlin {
 detekt {
     buildUponDefaultConfig = true
     allRules = false
+    autoCorrect = true
     config.setFrom("$projectDir/config/detekt/detekt.yml")
     baseline = file("$projectDir/config/detekt/baseline.xml")
 }

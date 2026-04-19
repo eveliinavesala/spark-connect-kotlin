@@ -8,18 +8,23 @@ import spark.kotlin.reflect.toKotlinList
 
 // Define the sealed interface and its subclasses within the test file for clarity
 sealed interface IdiomaticResult {
-    data class Success(val data: String) : IdiomaticResult
-    data class Error(val message: String) : IdiomaticResult
+    data class Success(
+        val data: String,
+    ) : IdiomaticResult
+
+    data class Error(
+        val message: String,
+    ) : IdiomaticResult
 }
 
 class IdiomaticSealedInterfaceTest : SparkTestBase() {
-
     @Test
     fun `test sealed interface with spark dataframe`() {
-        val data = listOf(
-            IdiomaticResult.Success("Data"),
-            IdiomaticResult.Error("An error occurred")
-        )
+        val data =
+            listOf(
+                IdiomaticResult.Success("Data"),
+                IdiomaticResult.Error("An error occurred"),
+            )
 
         val df = data.toDataFrame(spark)
 
@@ -30,10 +35,11 @@ class IdiomaticSealedInterfaceTest : SparkTestBase() {
 
     @Test
     fun `test sealed interface with spark dataset`() {
-        val data = listOf(
-            IdiomaticResult.Success("Data"),
-            IdiomaticResult.Error("An error occurred")
-        )
+        val data =
+            listOf(
+                IdiomaticResult.Success("Data"),
+                IdiomaticResult.Error("An error occurred"),
+            )
 
         val df = data.toDataFrame(spark)
         val results = df.toKotlinList<IdiomaticResult>()

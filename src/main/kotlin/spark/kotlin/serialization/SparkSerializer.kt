@@ -20,7 +20,7 @@ import spark.kotlin.serialization.encoders.SparkRowEncoder
  */
 internal class SparkSerializer<T>(
     private val serializer: KSerializer<T>,
-    private val schema: StructType
+    private val schema: StructType,
 ) {
     /**
      * Encodes [value] to a [GenericRowWithSchema] bound to [schema].

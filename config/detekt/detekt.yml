@@ -3,23 +3,25 @@ build:
 
 complexity:
   active: true
-  ComplexMethod:
+  CyclomaticComplexMethod:
     active: true
     threshold: 15
     # Spark integration and serialization dispatch methods are inherently branchy
-    excludes: ['**/test/**', '**/demo/**']
+    excludes: [ '**/test/**', '**/demo/**' ]
   LongMethod:
     active: true
     threshold: 60
-    excludes: ['**/test/**', '**/demo/**']
+    excludes: [ '**/test/**', '**/demo/**' ]
   LongParameterList:
     active: true
-    threshold: 8
+    functionThreshold: 8
+    constructorThreshold: 8
+    excludes: [ '**/test/**' ]
   TooManyFunctions:
     active: true
     thresholdInFiles: 20
     thresholdInClasses: 20
-    excludes: ['**/test/**', '**/demo/**']
+    excludes: [ '**/test/**', '**/demo/**' ]
 
 potential-bugs:
   active: true
@@ -33,13 +35,15 @@ potential-bugs:
     active: true
   ExplicitGarbageCollectionCall:
     active: true
+    # Intentional pre-measurement GC in benchmark and cache performance tests
+    excludes: [ '**/benchmark/**', '**/ReflectionCacheTest.kt', '**/ReflectionCacheStabilityTest.kt', '**/SerializationCachePerformanceTest.kt', '**/SerializationCacheStabilityTest.kt', '**/MultiScaleBenchmarkTest.kt', '**/BackendBenchmarkTest.kt' ]
   NullCheckOnMutableProperty:
     active: true
   UnreachableCode:
     active: true
   UnsafeCallOnNullableType:
     active: true
-    excludes: ['**/test/**', '**/demo/**']
+    excludes: [ '**/test/**', '**/demo/**' ]
   UnsafeCast:
     active: true
 
@@ -47,14 +51,15 @@ style:
   active: true
   MagicNumber:
     active: true
-    excludes: ['**/test/**', '**/demo/**']
-    ignoreNumbers: ['-1', '0', '1', '2', '10', '100', '1000']
+    excludes: [ '**/test/**', '**/demo/**' ]
+    ignoreNumbers: [ '-1', '0', '1', '2', '10', '100', '1000' ]
   UnusedImports:
     active: true
   UnusedPrivateMember:
     active: true
 
+# Formatting rules are owned by ktlint-gradle (ktlint 1.x).
+# detekt-formatting bundles ktlint 0.x which conflicts on continuation indent style.
+# Keeping this section disabled prevents duplicate, contradictory formatting violations.
 formatting:
-  active: true
-  android: false
-  autoCorrect: false
+  active: false

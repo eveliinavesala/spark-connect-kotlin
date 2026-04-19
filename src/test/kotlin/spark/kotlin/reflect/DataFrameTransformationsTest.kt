@@ -4,28 +4,34 @@ import classes.SparkTestBase
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.functions.col
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import spark.kotlin.reflect.toDataFrame
-import spark.kotlin.reflect.toKotlinList
 
 class DataFrameTransformationsTest : SparkTestBase() {
+    data class Person(
+        var name: String = "",
+        var age: Int = 0,
+    )
 
-    data class Person(var name: String = "", var age: Int = 0)
-    data class AgeOnly(var age: Int = 0)
+    data class AgeOnly(
+        var age: Int = 0,
+    )
 
     private lateinit var df: Dataset<Row>
     private lateinit var data: List<Person>
 
     @BeforeEach
     fun setup() {
-        data = listOf(
-            Person("Alice", 30),
-            Person("Bob", 40),
-            Person("Charlie", 25),
-            Person("David", 35)
-        )
+        data =
+            listOf(
+                Person("Alice", 30),
+                Person("Bob", 40),
+                Person("Charlie", 25),
+                Person("David", 35),
+            )
         df = data.toDataFrame(spark)
     }
 
@@ -44,7 +50,7 @@ class DataFrameTransformationsTest : SparkTestBase() {
         val selected = df.select("name")
         assertEquals(1, selected.columns().size)
         assertEquals("name", selected.columns()[0])
-        
+
         val selectedExpr = df.selectExpr("age + 1 as age")
         val result = selectedExpr.toKotlinList<AgeOnly>().first()
         assertEquals(31, result.age)
@@ -72,7 +78,7 @@ class DataFrameTransformationsTest : SparkTestBase() {
     fun `distinct() and dropDuplicates() should remove duplicate rows`() {
         val duplicateData = data + listOf(Person("Alice", 30))
         val dfWithDupes = duplicateData.toDataFrame(spark)
-        
+
         assertEquals(5, dfWithDupes.count())
         assertEquals(4, dfWithDupes.distinct().count())
         assertEquals(4, dfWithDupes.dropDuplicates().count())

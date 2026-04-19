@@ -4,8 +4,9 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.storage.StorageLevel;
 import org.junit.jupiter.api.Test;
-import java.util.Arrays;
+
 import java.util.List;
+
 import static org.apache.spark.sql.functions.col;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -26,7 +27,7 @@ public class DatasetAdvancedJavaTest extends JavaSparkTestBase {
             peopleDF.cache();
             assertTrue(peopleDF.storageLevel().useMemory());
             peopleDF.unpersist();
-            
+
             peopleDF.persist(StorageLevel.MEMORY_ONLY());
             assertTrue(peopleDF.storageLevel().useMemory());
             peopleDF.unpersist();
@@ -55,7 +56,7 @@ public class DatasetAdvancedJavaTest extends JavaSparkTestBase {
     @Test
     public void testNaFunctions() {
         Dataset<Row> dfWithNulls = spark.sql("SELECT 'Alice' as name, 30 as age UNION ALL SELECT null as name, 40 as age");
-        
+
         Dataset<Row> dropped = dfWithNulls.na().drop();
         assertEquals(1L, dropped.count());
 
@@ -81,8 +82,8 @@ public class DatasetAdvancedJavaTest extends JavaSparkTestBase {
 
     @Test
     public void testTransform() {
-        Dataset<Row> transformed = peopleDF.transform(df -> 
-            df.withColumn("age_doubled", col("age").multiply(2))
+        Dataset<Row> transformed = peopleDF.transform(df ->
+                df.withColumn("age_doubled", col("age").multiply(2))
         );
         assertEquals(60, (int) transformed.first().<Integer>getAs("age_doubled"));
     }

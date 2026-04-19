@@ -26,18 +26,18 @@ import kotlin.system.measureNanoTime
 @Tag("benchmark")
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class MultiScaleBenchmarkTest : SparkTestBase() {
-
     companion object {
         private const val WARMUP_ROUNDS = 3
         private const val MEASURE_ROUNDS = 7
 
-        private val DATASETS = listOf(
-            "8k"   to "/data/spotify_data_clean.csv",
-            "50k"  to "/data/spotify_50k.csv",
-            // 100k omitted: requires ≥8 GB available RAM; causes Spark container OOM on constrained machines.
-            // Uncomment when running on a machine with ≥8 GB free:
-            // "100k" to "/data/spotify_100k.csv",
-        )
+        private val DATASETS =
+            listOf(
+                "8k" to "/data/spotify_data_clean.csv",
+                "50k" to "/data/spotify_50k.csv",
+                // 100k omitted: requires ≥8 GB available RAM; causes Spark container OOM on constrained machines.
+                // Uncomment when running on a machine with ≥8 GB free:
+                // "100k" to "/data/spotify_100k.csv",
+            )
     }
 
     // ── Model (same as BackendBenchmarkTest) ──────────────────────────────────
@@ -58,19 +58,25 @@ class MultiScaleBenchmarkTest : SparkTestBase() {
         val albumReleaseDate: String,
         val albumTotalTracks: Int,
         val albumType: String,
-        val durationMin: Double
+        val durationMin: Double,
     )
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     @Suppress("UNUSED_PARAMETER")
-    private fun blackhole(value: Any?) {}
+    private fun blackhole(value: Any?) = Unit
 
-    private fun gc() { System.gc(); Thread.sleep(200) }
+    private fun gc() {
+        System.gc()
+        Thread.sleep(200)
+    }
 
     // Retries a single Spark Connect call on transient gRPC UNAVAILABLE errors.
     // The retry attempts are not included in timing — only the successful call is timed.
-    private fun <T> retryOnUnavailable(maxAttempts: Int = 3, block: () -> T): T {
+    private fun <T> retryOnUnavailable(
+        maxAttempts: Int = 3,
+        block: () -> T,
+    ): T {
         var lastException: Exception? = null
         repeat(maxAttempts) { attempt ->
             try {
@@ -96,7 +102,8 @@ class MultiScaleBenchmarkTest : SparkTestBase() {
     }
 
     private fun loadTracks(csvPath: String): List<SpotifyTrack> =
-        spark.read()
+        spark
+            .read()
             .option("header", "true")
             .option("inferSchema", "true")
             .csv(csvPath)
@@ -104,48 +111,71 @@ class MultiScaleBenchmarkTest : SparkTestBase() {
             .mapNotNull { row ->
                 runCatching {
                     SpotifyTrack(
-                        trackId          = row.getAs<String?>("track_id")           ?: return@mapNotNull null,
-                        trackName        = row.getAs<String?>("track_name")         ?: "",
-                        trackNumber      = toInt(row.getAs("track_number")),
-                        trackPopularity  = toInt(row.getAs("track_popularity")),
-                        explicit         = row.getAs<String?>("explicit")?.uppercase() == "TRUE",
-                        artistName       = row.getAs<String?>("artist_name")        ?: "",
+                        trackId = row.getAs<String?>("track_id") ?: return@mapNotNull null,
+                        trackName = row.getAs<String?>("track_name") ?: "",
+                        trackNumber = toInt(row.getAs("track_number")),
+                        trackPopularity = toInt(row.getAs("track_popularity")),
+                        explicit = row.getAs<String?>("explicit")?.uppercase() == "TRUE",
+                        artistName = row.getAs<String?>("artist_name") ?: "",
                         artistPopularity = toInt(row.getAs("artist_popularity")),
-                        artistFollowers  = toLong(row.getAs("artist_followers")),
-                        artistGenres     = row.getAs<String?>("artist_genres")      ?: "",
-                        albumId          = row.getAs<String?>("album_id")           ?: "",
-                        albumName        = row.getAs<String?>("album_name")         ?: "",
+                        artistFollowers = toLong(row.getAs("artist_followers")),
+                        artistGenres = row.getAs<String?>("artist_genres") ?: "",
+                        albumId = row.getAs<String?>("album_id") ?: "",
+                        albumName = row.getAs<String?>("album_name") ?: "",
                         albumReleaseDate = row.getAs<String?>("album_release_date") ?: "",
                         albumTotalTracks = toInt(row.getAs("album_total_tracks")),
-                        albumType        = row.getAs<String?>("album_type")         ?: "",
-                        durationMin      = toDouble(row.getAs("track_duration_min"))
+                        albumType = row.getAs<String?>("album_type") ?: "",
+                        durationMin = toDouble(row.getAs("track_duration_min")),
                     )
                 }.getOrNull()
             }
 
-    private fun report(workload: String, backend: String, timesNs: List<Long>, nRows: Int, sizeLabel: String) {
-        val medianMs   = median(timesNs) / 1_000_000.0
-        val minMs      = timesNs.min() / 1_000_000.0
-        val maxMs      = timesNs.max() / 1_000_000.0
+    private fun report(
+        workload: String,
+        backend: String,
+        timesNs: List<Long>,
+        nRows: Int,
+        sizeLabel: String,
+    ) {
+        val medianMs = median(timesNs) / 1_000_000.0
+        val minMs = timesNs.min() / 1_000_000.0
+        val maxMs = timesNs.max() / 1_000_000.0
         val rowsPerSec = (nRows / (medianMs / 1000.0)).toLong()
 
-        println(buildString {
-            appendLine("\n┌─ $workload  [$backend]  scale=$sizeLabel  n=$nRows  ($MEASURE_ROUNDS measurements)")
-            appendLine("│  median : ${String.format(Locale.US, "%8.1f", medianMs)} ms   →  $rowsPerSec rows/s")
-            appendLine("│  min    : ${String.format(Locale.US, "%8.1f", minMs)} ms")
-            appendLine("│  max    : ${String.format(Locale.US, "%8.1f", maxMs)} ms")
-            append("└─")
-        })
+        println(
+            buildString {
+                appendLine("\n┌─ $workload  [$backend]  scale=$sizeLabel  n=$nRows  ($MEASURE_ROUNDS measurements)")
+                appendLine("│  median : ${String.format(Locale.US, "%8.1f", medianMs)} ms   →  $rowsPerSec rows/s")
+                appendLine("│  min    : ${String.format(Locale.US, "%8.1f", minMs)} ms")
+                appendLine("│  max    : ${String.format(Locale.US, "%8.1f", maxMs)} ms")
+                append("└─")
+            },
+        )
 
         val outDir = File("test-results/benchmarking-results").also { it.mkdirs() }
         val ts = DateTimeFormatter.ofPattern("yyyyMMdd_HHmm").withZone(ZoneOffset.UTC).format(Instant.now())
         val file = File(outDir, "multi-scale-benchmark-$ts.csv")
         if (!file.exists()) {
-            file.writeText("timestamp,scale,backend,workload,n_rows,warmup_rounds,measure_rounds,median_ms,min_ms,max_ms,rows_per_sec_median\n")
+            file.writeText(
+                "timestamp,scale,backend,workload,n_rows,warmup_rounds," +
+                    "measure_rounds,median_ms,min_ms,max_ms,rows_per_sec_median\n",
+            )
         }
         file.appendText(
             "$ts,$sizeLabel,$backend,$workload,$nRows,$WARMUP_ROUNDS,$MEASURE_ROUNDS," +
-            "${String.format(Locale.US, "%.1f", medianMs)},${String.format(Locale.US, "%.1f", minMs)},${String.format(Locale.US, "%.1f", maxMs)},$rowsPerSec\n"
+                "${
+                    String.format(
+                        Locale.US,
+                        "%.1f",
+                        medianMs,
+                    )
+                },${String.format(Locale.US, "%.1f", minMs)},${
+                    String.format(
+                        Locale.US,
+                        "%.1f",
+                        maxMs,
+                    )
+                },$rowsPerSec\n",
         )
     }
 
@@ -156,7 +186,13 @@ class MultiScaleBenchmarkTest : SparkTestBase() {
         for ((label, csvPath) in DATASETS) {
             val tracks = loadTracks(csvPath)
             println("\n[MultiScale] Loaded ${tracks.size} rows from $csvPath")
-            repeat(WARMUP_ROUNDS) { retryOnUnavailable { blackhole(tracks.toDataFrame(spark).toKotlinList<SpotifyTrack>()) } }
+            repeat(WARMUP_ROUNDS) {
+                retryOnUnavailable {
+                    blackhole(
+                        tracks.toDataFrame(spark).toKotlinList<SpotifyTrack>(),
+                    )
+                }
+            }
             gc()
             val times = measure { tracks.toDataFrame(spark).toKotlinList<SpotifyTrack>() }
             report("round-trip", "reflect", times, tracks.size, label)
@@ -168,7 +204,15 @@ class MultiScaleBenchmarkTest : SparkTestBase() {
         for ((label, csvPath) in DATASETS) {
             val tracks = loadTracks(csvPath)
             println("\n[MultiScale] Loaded ${tracks.size} rows from $csvPath")
-            repeat(WARMUP_ROUNDS) { retryOnUnavailable { blackhole(tracks.toSerializableDataFrame(spark).toSerializableKotlinList<SpotifyTrack>()) } }
+            repeat(
+                WARMUP_ROUNDS,
+            ) {
+                retryOnUnavailable {
+                    blackhole(
+                        tracks.toSerializableDataFrame(spark).toSerializableKotlinList<SpotifyTrack>(),
+                    )
+                }
+            }
             gc()
             val times = measure { tracks.toSerializableDataFrame(spark).toSerializableKotlinList<SpotifyTrack>() }
             report("round-trip", "serialize", times, tracks.size, label)
@@ -223,28 +267,31 @@ class MultiScaleBenchmarkTest : SparkTestBase() {
 
     // ── Type coercion helpers ─────────────────────────────────────────────────
 
-    private fun toInt(v: Any?): Int = when (v) {
-        is Int    -> v
-        is Long   -> v.toInt()
-        is Double -> v.toInt()
-        is String -> v.toIntOrNull() ?: 0
-        else      -> 0
-    }
+    private fun toInt(v: Any?): Int =
+        when (v) {
+            is Int -> v
+            is Long -> v.toInt()
+            is Double -> v.toInt()
+            is String -> v.toIntOrNull() ?: 0
+            else -> 0
+        }
 
-    private fun toLong(v: Any?): Long = when (v) {
-        is Long   -> v
-        is Int    -> v.toLong()
-        is Double -> v.toLong()
-        is String -> v.toLongOrNull() ?: 0L
-        else      -> 0L
-    }
+    private fun toLong(v: Any?): Long =
+        when (v) {
+            is Long -> v
+            is Int -> v.toLong()
+            is Double -> v.toLong()
+            is String -> v.toLongOrNull() ?: 0L
+            else -> 0L
+        }
 
-    private fun toDouble(v: Any?): Double = when (v) {
-        is Double -> v
-        is Float  -> v.toDouble()
-        is Int    -> v.toDouble()
-        is Long   -> v.toDouble()
-        is String -> v.toDoubleOrNull() ?: 0.0
-        else      -> 0.0
-    }
+    private fun toDouble(v: Any?): Double =
+        when (v) {
+            is Double -> v
+            is Float -> v.toDouble()
+            is Int -> v.toDouble()
+            is Long -> v.toDouble()
+            is String -> v.toDoubleOrNull() ?: 0.0
+            else -> 0.0
+        }
 }

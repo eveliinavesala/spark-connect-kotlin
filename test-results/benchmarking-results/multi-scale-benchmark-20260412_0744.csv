@@ -1,0 +1,5 @@
+timestamp,scale,backend,workload,n_rows,warmup_rounds,measure_rounds,median_ms,min_ms,max_ms,rows_per_sec_median
+20260412_0744,8k,serialize,round-trip,8582,3,7,198.2,146.9,254.2,43299
+20260412_0744,50k,serialize,round-trip,50000,3,7,836.7,766.4,942.6,59758
+20260412_0744,8k,reflect,encode-only,8582,3,7,32.3,31.4,56.0,265634
+20260412_0744,50k,reflect,encode-only,50000,3,7,159.6,157.3,217.7,313351

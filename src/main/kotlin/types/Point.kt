@@ -9,7 +9,14 @@ import java.io.Serializable
  * The annotation links this class to its UDT implementation.
  */
 @SQLUserDefinedType(udt = PointUDT::class)
-class Point(val x: Double, val y: Double) : Serializable {
+class Point(
+    val x: Double,
+    val y: Double,
+) : Serializable {
+    companion object {
+        private const val serialVersionUID = 1L
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (javaClass != other?.javaClass) return false
@@ -28,7 +35,5 @@ class Point(val x: Double, val y: Double) : Serializable {
         return result
     }
 
-    override fun toString(): String {
-        return "Point(x=$x, y=$y)"
-    }
+    override fun toString(): String = "Point(x=$x, y=$y)"
 }

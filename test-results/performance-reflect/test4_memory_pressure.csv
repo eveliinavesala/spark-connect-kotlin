@@ -1,0 +1,15 @@
+# Test: Test 4 - Memory Pressure Stability
+# Description: Verify O(1) performance maintained under GC pressure
+# Test Class: spark.kotlin.reflect.ReflectionCacheStabilityTest
+# Test Method: cache performance stable under memory pressure()
+# Warmup Iterations: 100000
+# Sample Sizes: 100000
+# Runs Per Sample: 2
+# Blackhole: Enabled
+# GC Before Test: false
+# Post-GC Sleep: 0ms
+# Pass Threshold: 0.2 <= degradation < 10.0
+#
+test_name,test_id,execution_id,execution_date,execution_time,sample_size,run_number,time_ns,warmup_iterations,jvm_version,jvm_vendor,os_name,os_version,os_arch,cpu_cores,max_memory_mb,total_memory_mb,free_memory_mb,kotlin_version,gradle_version,test_result,test_status,failure_reason,test4_baseline_time_ns,test4_degradation_ratio,test4_degradation_threshold,test4_memory_pressure_mb,test4_pressure_time_ns
+test4_memory_pressure,test4,exec_85dbd4492bb0,2026-04-19,12:34:56.707,100000,1,36,100000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,130,89,2.3.0,8.14.3,PASSED,completed,,36,1.0,10.0,100,36
+test4_memory_pressure,test4,exec_85dbd4492bb0,2026-04-19,12:34:56.780,100000,2,36,100000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,330,92,2.3.0,8.14.3,PASSED,completed,,36,1.0,10.0,100,36

@@ -27,12 +27,12 @@ public class JavaSparkTestBase {
     @BeforeEach
     public void setupData() {
         data = Arrays.asList(
-            new Person("Alice", 30, 1),
-            new Person("Bob", 40, 2),
-            new Person("Charlie", 25, 1),
-            new Person("David", 35, 3)
+                new Person("Alice", 30, 1),
+                new Person("Bob", 40, 2),
+                new Person("Charlie", 25, 1),
+                new Person("David", 35, 3)
         );
-        
+
         peopleDS = spark.createDataset(data, Encoders.bean(Person.class));
         peopleDF = peopleDS.toDF();
     }

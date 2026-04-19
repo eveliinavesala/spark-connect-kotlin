@@ -4,42 +4,61 @@ import classes.SparkTestBase
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.expressions.Window
-import org.apache.spark.sql.functions.*
-import org.junit.jupiter.api.Assertions.*
+import org.apache.spark.sql.functions.col
+import org.apache.spark.sql.functions.dense_rank
+import org.apache.spark.sql.functions.first
+import org.apache.spark.sql.functions.rank
+import org.apache.spark.sql.functions.row_number
+import org.apache.spark.sql.functions.sum
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import spark.kotlin.reflect.toDataFrame
-import spark.kotlin.reflect.toKotlinList
 
 class DataFrameWindowTest : SparkTestBase() {
+    data class Sale(
+        var department: String = "",
+        var employee: String = "",
+        var amount: Int = 0,
+    )
 
-    data class Sale(var department: String = "", var employee: String = "", var amount: Int = 0)
-    data class RankedSale(var employee: String = "", var amount: Int = 0, var rank: Int = 0)
-    data class DenseRankedSale(var employee: String = "", var amount: Int = 0, var rank: Int = 0, var dense_rank: Int = 0)
+    data class RankedSale(
+        var employee: String = "",
+        var amount: Int = 0,
+        var rank: Int = 0,
+    )
+
+    data class DenseRankedSale(
+        var employee: String = "",
+        var amount: Int = 0,
+        var rank: Int = 0,
+        var denseRank: Int = 0,
+    )
 
     private lateinit var df: Dataset<Row>
 
     @BeforeEach
     fun setup() {
-        val data = listOf(
-            Sale("Sales", "John", 1000),
-            Sale("Sales", "Jane", 1200),
-            Sale("Sales", "John", 800),
-            Sale("Engineering", "Alice", 1500),
-            Sale("Engineering", "Bob", 1400)
-        )
+        val data =
+            listOf(
+                Sale("Sales", "John", 1000),
+                Sale("Sales", "Jane", 1200),
+                Sale("Sales", "John", 800),
+                Sale("Engineering", "Alice", 1500),
+                Sale("Engineering", "Bob", 1400),
+            )
         df = data.toDataFrame(spark)
     }
 
     @Test
     fun `should calculate row_number over a window`() {
         val windowSpec = Window.partitionBy("department").orderBy(col("amount").desc())
-        
+
         val rankedDF = df.withColumn("rank", row_number().over(windowSpec))
         rankedDF.show()
 
         val results = rankedDF.toKotlinList<RankedSale>()
-        
+
         val janeRow = results.find { it.employee == "Jane" }
         val johnRow = results.find { it.employee == "John" && it.amount == 1000 }
 
@@ -51,15 +70,17 @@ class DataFrameWindowTest : SparkTestBase() {
     fun `should calculate rank and dense_rank over a window`() {
         val windowSpec = Window.partitionBy("department").orderBy(col("amount").desc())
 
-        val rankedDF = df.withColumn("rank", rank().over(windowSpec))
-                           .withColumn("dense_rank", dense_rank().over(windowSpec))
-        
+        val rankedDF =
+            df
+                .withColumn("rank", rank().over(windowSpec))
+                .withColumn("denseRank", dense_rank().over(windowSpec))
+
         val results = rankedDF.toKotlinList<DenseRankedSale>()
         val aliceRow = results.find { it.employee == "Alice" }
-        
+
         assertNotNull(aliceRow)
         assertEquals(1, aliceRow!!.rank)
-        assertEquals(1, aliceRow.dense_rank)
+        assertEquals(1, aliceRow.denseRank)
     }
 
     @Test

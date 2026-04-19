@@ -22,9 +22,8 @@ import java.time.Duration
  * For ordinary library tests that only need Spark, use [SparkTestBase] instead.
  */
 abstract class UnityCatalogTestBase {
-
     protected val spark: SparkSession
-        get() = Companion.spark
+        get() = staticSpark
 
     companion object {
         private val projectRoot = System.getProperty("user.dir")
@@ -36,36 +35,44 @@ abstract class UnityCatalogTestBase {
         private val composeContainer: ComposeContainer by lazy {
             println("--- Starting Unity Catalog test environment (Postgres + Unity + Spark) ---")
             ComposeContainer(File("$projectRoot/docker-compose.yml"))
-                .withExposedService("postgres", 5432,
-                    Wait.forHealthcheck().withStartupTimeout(Duration.ofSeconds(60)))
-                .withExposedService("unity", 8080,
-                    Wait.forHealthcheck().withStartupTimeout(Duration.ofSeconds(120)))
-                .withExposedService("spark", 15002,
-                    Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(180)))
-                .withLocalCompose(true)
+                .withExposedService(
+                    "postgres",
+                    5432,
+                    Wait.forHealthcheck().withStartupTimeout(Duration.ofSeconds(60)),
+                ).withExposedService(
+                    "unity",
+                    8080,
+                    Wait.forHealthcheck().withStartupTimeout(Duration.ofSeconds(120)),
+                ).withExposedService(
+                    "spark",
+                    15002,
+                    Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(180)),
+                ).withLocalCompose(true)
                 .apply { start() }
         }
 
-        val spark: SparkSession by lazy {
-            val sparkPort = if (isExternal) {
-                println("--- UC_EXTERNAL=true: connecting to already-running stack on port 15002 ---")
-                15002
-            } else {
-                composeContainer.getServicePort("spark", 15002)
-            }
+        @get:JvmStatic
+        val staticSpark: SparkSession by lazy {
+            val sparkPort =
+                if (isExternal) {
+                    println("--- UC_EXTERNAL=true: connecting to already-running stack on port 15002 ---")
+                    15002
+                } else {
+                    composeContainer.getServicePort("spark", 15002)
+                }
 
-            val session = SparkSession.builder()
-                .remote("sc://localhost:${sparkPort}")
-                .getOrCreate()
+            val session =
+                SparkSession
+                    .builder()
+                    .remote("sc://localhost:$sparkPort")
+                    .getOrCreate()
 
             val jarFile = File(projectRoot, "build/libs/spark-connect-kotlin-1.0-test-fat.jar")
 
             if (jarFile.exists()) {
                 session.addArtifact(jarFile.toURI())
             } else {
-                throw IllegalStateException(
-                    "Test fat JAR not found at ${jarFile.absolutePath}. Run the 'testFatJar' task."
-                )
+                error("Test fat JAR not found at ${jarFile.absolutePath}. Run the 'testFatJar' task.")
             }
             session
         }
@@ -74,8 +81,7 @@ abstract class UnityCatalogTestBase {
          * Returns the host port for Unity Catalog's REST API.
          * In external mode this is always 8080; in managed mode it is the port mapped by testcontainers.
          */
-        fun getUnityCatalogPort(): Int =
-            if (isExternal) 8080 else composeContainer.getServicePort("unity", 8080)
+        fun getUnityCatalogPort(): Int = if (isExternal) 8080 else composeContainer.getServicePort("unity", 8080)
 
         @AfterAll
         @JvmStatic

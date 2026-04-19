@@ -1,7 +1,10 @@
 package spark.kotlin.serialization
 
 import kotlinx.serialization.serializer
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotSame
+import org.junit.jupiter.api.Assertions.assertSame
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 /**
@@ -10,7 +13,6 @@ import org.junit.jupiter.api.Test
  * Tests caching behavior for schemas, serializers, and deserializers.
  */
 class SerializationCacheTest {
-
     @Test
     fun `test schema caching returns same instance`() {
         val serializer = serializer<SimplePerson>()
@@ -120,9 +122,10 @@ class SerializationCacheTest {
         val serializer = serializer<SimplePerson>()
 
         // Simulate concurrent access by getting from multiple "threads"
-        val schemas = (1..10).map {
-            SerializationCache.getSchema(serializer)
-        }
+        val schemas =
+            (1..10).map {
+                SerializationCache.getSchema(serializer)
+            }
 
         // All should be the same instance
         val first = schemas.first()

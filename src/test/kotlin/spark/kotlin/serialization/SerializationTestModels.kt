@@ -4,7 +4,7 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.Serializable
 
-/**
+/*
  * Test data models for kotlinx.serialization-based encoder/decoder tests.
  */
 
@@ -12,7 +12,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class SimplePerson(
     val name: String,
-    val age: Int
+    val age: Int,
 )
 
 // Data class with various primitive types
@@ -26,7 +26,7 @@ data class PrimitiveTypes(
     val floatVal: Float,
     val doubleVal: Double,
     val stringVal: String,
-    val charVal: Char
+    val charVal: Char,
 )
 
 // Data class with nullable fields
@@ -34,7 +34,7 @@ data class PrimitiveTypes(
 data class NullableFields(
     val name: String,
     val age: Int?,
-    val email: String?
+    val email: String?,
 )
 
 // Nested data class
@@ -42,34 +42,34 @@ data class NullableFields(
 data class Address(
     val street: String,
     val city: String,
-    val zipCode: String
+    val zipCode: String,
 )
 
 @Serializable
 data class PersonWithAddress(
     val name: String,
     val age: Int,
-    val address: Address
+    val address: Address,
 )
 
 // Data class with collections
 @Serializable
 data class PersonWithList(
     val name: String,
-    val favoriteFoods: List<String>
+    val favoriteFoods: List<String>,
 )
 
 @Serializable
 data class PersonWithMap(
     val name: String,
-    val attributes: Map<String, String>
+    val attributes: Map<String, String>,
 )
 
 @Serializable
 data class CollectionTypes(
     val tags: List<String>,
     val scores: Map<String, Int>,
-    val numbers: List<Int>
+    val numbers: List<Int>,
 )
 
 // Enum
@@ -77,13 +77,13 @@ data class CollectionTypes(
 enum class Status {
     ACTIVE,
     INACTIVE,
-    PENDING
+    PENDING,
 }
 
 @Serializable
 data class PersonWithEnum(
     val name: String,
-    val status: Status
+    val status: Status,
 )
 
 // Sealed class (polymorphism)
@@ -93,18 +93,27 @@ sealed class Animal {
 }
 
 @Serializable
-data class Dog(override val name: String, val breed: String) : Animal()
+data class Dog(
+    override val name: String,
+    val breed: String,
+) : Animal()
 
 @Serializable
-data class Cat(override val name: String, val color: String) : Animal()
+data class Cat(
+    override val name: String,
+    val color: String,
+) : Animal()
 
 @Serializable
-data class Bird(override val name: String, val canFly: Boolean) : Animal()
+data class Bird(
+    override val name: String,
+    val canFly: Boolean,
+) : Animal()
 
 @Serializable
 data class Zoo(
     val location: String,
-    val animals: List<Animal>
+    val animals: List<Animal>,
 )
 
 // Date/Time types
@@ -112,27 +121,27 @@ data class Zoo(
 data class EventWithDates(
     val title: String,
     val eventDate: LocalDate,
-    val timestamp: Instant
+    val timestamp: Instant,
 )
 
 // Deeply nested structure
 @Serializable
 data class Company(
     val name: String,
-    val departments: List<Department>
+    val departments: List<Department>,
 )
 
 @Serializable
 data class Department(
     val name: String,
-    val employees: List<Employee>
+    val employees: List<Employee>,
 )
 
 @Serializable
 data class Employee(
     val name: String,
     val salary: Double,
-    val address: Address
+    val address: Address,
 )
 
 // Complex nested with collections and polymorphism
@@ -140,7 +149,7 @@ data class Employee(
 data class ComplexData(
     val id: String,
     val metadata: Map<String, String>,
-    val items: List<DataItem>
+    val items: List<DataItem>,
 )
 
 @Serializable
@@ -149,7 +158,13 @@ sealed class DataItem {
 }
 
 @Serializable
-data class TextItem(override val id: Int, val text: String) : DataItem()
+data class TextItem(
+    override val id: Int,
+    val text: String,
+) : DataItem()
 
 @Serializable
-data class NumberItem(override val id: Int, val value: Double) : DataItem()
+data class NumberItem(
+    override val id: Int,
+    val value: Double,
+) : DataItem()

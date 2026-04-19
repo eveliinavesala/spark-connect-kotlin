@@ -29,7 +29,8 @@ import java.sql.Timestamp
  * - `LIST` → [SparkListEncoder] (produces a Scala `Seq`)
  * - `MAP` → [SparkMapEncoder] (produces a Scala immutable `Map`)
  * - `CLASS` at depth 1 (root) → this encoder (root fields collected in-place)
- * - `CLASS` at depth > 1 (nested) → [SparkStructEncoder] (produces a [org.apache.spark.sql.catalyst.expressions.GenericRow])
+ * - `CLASS` at depth > 1 (nested) → [SparkStructEncoder] (produces a
+ *   [org.apache.spark.sql.catalyst.expressions.GenericRow])
  * - `SEALED` → [SparkSealedEncoder] (produces a flat [GenericRowWithSchema]; its columns are
  *   unpacked and appended to [values] by the `addToParent` callback)
  * - `kotlinx.datetime.*` → special-cased in [encodeSerializableValue]; `beginStructure` returns this
@@ -40,9 +41,8 @@ import java.sql.Timestamp
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkRowEncoder(
     private val schema: StructType,
-    override val serializersModule: SerializersModule = EmptySerializersModule()
+    override val serializersModule: SerializersModule = EmptySerializersModule(),
 ) : AbstractEncoder() {
-
     private val values = mutableListOf<Any?>()
     private var currentIndex = 0
     private var structureDepth = 0
@@ -50,9 +50,7 @@ internal class SparkRowEncoder(
     /**
      * Get the final Spark Row after encoding is complete.
      */
-    fun getRow(): Row {
-        return GenericRowWithSchema(values.toTypedArray(), schema)
-    }
+    fun getRow(): Row = GenericRowWithSchema(values.toTypedArray(), schema)
 
     // Primitive type encoding
     override fun encodeBoolean(value: Boolean) {
@@ -105,7 +103,10 @@ internal class SparkRowEncoder(
         currentIndex++
     }
 
-    override fun encodeEnum(enumDescriptor: SerialDescriptor, index: Int) {
+    override fun encodeEnum(
+        enumDescriptor: SerialDescriptor,
+        index: Int,
+    ) {
         values.add(enumDescriptor.getElementName(index))
         currentIndex++
     }
@@ -114,12 +115,24 @@ internal class SparkRowEncoder(
     override fun beginStructure(descriptor: SerialDescriptor): CompositeEncoder {
         structureDepth++
         return when (descriptor.kind) {
-            StructureKind.LIST -> SparkListEncoder({ addValue(it) }, serializersModule)
-            StructureKind.MAP -> SparkMapEncoder({ addValue(it) }, serializersModule)
+            StructureKind.LIST -> {
+                SparkListEncoder({ addValue(it) }, serializersModule)
+            }
+
+            StructureKind.MAP -> {
+                SparkMapEncoder({ addValue(it) }, serializersModule)
+            }
+
             StructureKind.CLASS -> {
                 when (descriptor.serialName) {
-                    "kotlinx.datetime.LocalDate" -> this
-                    "kotlinx.datetime.Instant" -> this
+                    "kotlinx.datetime.LocalDate" -> {
+                        this
+                    }
+
+                    "kotlinx.datetime.Instant" -> {
+                        this
+                    }
+
                     else -> {
                         // Only use SparkStructEncoder for nested structures
                         // Root level (structureDepth == 1) should encode directly
@@ -127,12 +140,24 @@ internal class SparkRowEncoder(
                     }
                 }
             }
-            PolymorphicKind.SEALED -> SparkSealedEncoder(
-                { row -> (row as Row).let { r -> (0 until r.size()).forEach { addValue(r.get(it)) } } },
-                serializersModule,
-                schema
-            )
-            else -> this
+
+            PolymorphicKind.SEALED -> {
+                SparkSealedEncoder(
+                    { row ->
+                        (row as Row).let { r ->
+                            for (i in 0 until r.size()) {
+                                addValue(r.get(i))
+                            }
+                        }
+                    },
+                    serializersModule,
+                    schema,
+                )
+            }
+
+            else -> {
+                this
+            }
         }
     }
 
@@ -141,19 +166,26 @@ internal class SparkRowEncoder(
     }
 
     // Handle special types (DateTime)
-    override fun <T> encodeSerializableValue(serializer: SerializationStrategy<T>, value: T) {
+    override fun <T> encodeSerializableValue(
+        serializer: SerializationStrategy<T>,
+        value: T,
+    ) {
         when (serializer.descriptor.serialName) {
             "kotlinx.datetime.LocalDate" -> {
                 val localDate = value as LocalDate
                 values.add(Date.valueOf(localDate.toJavaLocalDate()))
                 currentIndex++
             }
+
             "kotlinx.datetime.Instant" -> {
                 val instant = value as Instant
                 values.add(Timestamp.from(instant.toJavaInstant()))
                 currentIndex++
             }
-            else -> super.encodeSerializableValue(serializer, value)
+
+            else -> {
+                super.encodeSerializableValue(serializer, value)
+            }
         }
     }
 

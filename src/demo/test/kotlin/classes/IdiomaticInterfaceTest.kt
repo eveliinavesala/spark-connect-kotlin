@@ -1,12 +1,12 @@
 package classes
 
-import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
 
 class IdiomaticInterfaceTest {
-
     class ConcreteImplementation : IdiomaticInterface {
         var called = false
+
         override fun doSomething() {
             called = true
         }

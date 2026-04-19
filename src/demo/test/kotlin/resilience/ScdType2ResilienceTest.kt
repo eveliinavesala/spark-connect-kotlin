@@ -2,17 +2,23 @@ package resilience
 
 import classes.SparkTestBase
 import kotlinx.datetime.Instant
+import kotlinx.serialization.MissingFieldException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.serializer
 import org.apache.spark.sql.functions.current_timestamp
 import org.apache.spark.sql.functions.lit
 import org.apache.spark.sql.types.DataTypes
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.MethodOrderer
 import org.junit.jupiter.api.Order
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.TestMethodOrder
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.assertThrows
 import spark.kotlin.serialization.schemaFor
 import spark.kotlin.serialization.toSerializableDataFrame
 import spark.kotlin.serialization.toSerializableKotlinList
@@ -40,7 +46,6 @@ import spark.kotlin.serialization.toSerializableKotlinList
 @TestMethodOrder(MethodOrderer.OrderAnnotation::class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ScdType2ResilienceTest : SparkTestBase() {
-
     // ── Data models ───────────────────────────────────────────────────────────
 
     /** V1: simple dimension — no temporal columns. */
@@ -48,7 +53,7 @@ class ScdType2ResilienceTest : SparkTestBase() {
     data class SimpleDimension(
         val id: Int,
         val name: String,
-        val tier: String
+        val tier: String,
     )
 
     /**
@@ -63,7 +68,7 @@ class ScdType2ResilienceTest : SparkTestBase() {
         val tier: String,
         val validFrom: Instant?,
         val validTo: Instant?,
-        val isCurrent: Boolean?
+        val isCurrent: Boolean?,
     )
 
     /**
@@ -78,34 +83,48 @@ class ScdType2ResilienceTest : SparkTestBase() {
         val tier: String,
         val validFrom: Instant? = null,
         val validTo: Instant? = null,
-        val isCurrent: Boolean? = null
+        val isCurrent: Boolean? = null,
     )
 
     // ── Test fixtures ─────────────────────────────────────────────────────────
 
-    private val v1Data = listOf(
-        SimpleDimension(1, "Alice", "Gold"),
-        SimpleDimension(2, "Bob",   "Silver"),
-        SimpleDimension(3, "Carol", "Bronze")
-    )
+    private val v1Data =
+        listOf(
+            SimpleDimension(1, "Alice", "Gold"),
+            SimpleDimension(2, "Bob", "Silver"),
+            SimpleDimension(3, "Carol", "Bronze"),
+        )
 
-    private val v2DataWithHistory = listOf(
-        // Expired record: Alice was Gold tier, superseded on 2024-06-15
-        ScdDimension(1, "Alice", "Gold",
-            validFrom  = Instant.parse("2024-01-01T00:00:00Z"),
-            validTo    = Instant.parse("2024-06-15T00:00:00Z"),
-            isCurrent  = false),
-        // Current record: Alice is now Silver tier
-        ScdDimension(1, "Alice", "Silver",
-            validFrom  = Instant.parse("2024-06-15T00:00:00Z"),
-            validTo    = null,
-            isCurrent  = true),
-        // Current record: Bob, no history
-        ScdDimension(2, "Bob", "Bronze",
-            validFrom  = Instant.parse("2024-01-01T00:00:00Z"),
-            validTo    = null,
-            isCurrent  = true)
-    )
+    private val v2DataWithHistory =
+        listOf(
+            // Expired record: Alice was Gold tier, superseded on 2024-06-15
+            ScdDimension(
+                1,
+                "Alice",
+                "Gold",
+                validFrom = Instant.parse("2024-01-01T00:00:00Z"),
+                validTo = Instant.parse("2024-06-15T00:00:00Z"),
+                isCurrent = false,
+            ),
+            // Current record: Alice is now Silver tier
+            ScdDimension(
+                1,
+                "Alice",
+                "Silver",
+                validFrom = Instant.parse("2024-06-15T00:00:00Z"),
+                validTo = null,
+                isCurrent = true,
+            ),
+            // Current record: Bob, no history
+            ScdDimension(
+                2,
+                "Bob",
+                "Bronze",
+                validFrom = Instant.parse("2024-01-01T00:00:00Z"),
+                validTo = null,
+                isCurrent = true,
+            ),
+        )
 
     // ── Test 1: V1 data → Spark-side migration → decode as ScdDimension ───────
 
@@ -122,22 +141,23 @@ class ScdType2ResilienceTest : SparkTestBase() {
         val v1Df = v1Data.toSerializableDataFrame(spark)
 
         // Simulate: ALTER TABLE ADD COLUMNS validFrom TIMESTAMP, validTo TIMESTAMP, isCurrent BOOLEAN
-        val scdDf = v1Df
-            .withColumn("validFrom", current_timestamp())
-            .withColumn("validTo",   lit(null).cast(DataTypes.TimestampType))
-            .withColumn("isCurrent", lit(true))
+        val scdDf =
+            v1Df
+                .withColumn("validFrom", current_timestamp())
+                .withColumn("validTo", lit(null).cast(DataTypes.TimestampType))
+                .withColumn("isCurrent", lit(true))
 
         val result = scdDf.toSerializableKotlinList<ScdDimension>()
 
         assertEquals(3, result.size, "All 3 customers should decode after SCD migration")
         result.forEach { customer ->
             assertNotNull(customer.validFrom, "validFrom must be populated by current_timestamp()")
-            assertNull(customer.validTo,      "validTo must be NULL for current records")
+            assertNull(customer.validTo, "validTo must be NULL for current records")
             assertTrue(customer.isCurrent == true, "isCurrent must be true for migrated records")
         }
 
         val alice = checkNotNull(result.find { it.name == "Alice" }) { "Alice not found" }
-        assertEquals(1,      alice.id)
+        assertEquals(1, alice.id)
         assertEquals("Gold", alice.tier)
 
         println("[Test 1] V1→SCD migration: ${result.size} customers decoded, temporal columns populated correctly")
@@ -161,18 +181,20 @@ class ScdType2ResilienceTest : SparkTestBase() {
         assertEquals(3, result.size, "All 3 records including historical should decode")
 
         // Expired record: Gold Alice — validTo is set, isCurrent=false
-        val expired = checkNotNull(result.find { it.tier == "Gold" && it.isCurrent == false }) {
-            "Expired Gold/Alice record not found"
-        }
+        val expired =
+            checkNotNull(result.find { it.tier == "Gold" && it.isCurrent == false }) {
+                "Expired Gold/Alice record not found"
+            }
         assertEquals(1, expired.id)
         assertEquals(Instant.parse("2024-01-01T00:00:00Z"), expired.validFrom)
         assertEquals(Instant.parse("2024-06-15T00:00:00Z"), expired.validTo)
         assertFalse(expired.isCurrent!!, "Expired record: isCurrent must be false")
 
         // Current record: Silver Alice — validTo is null
-        val aliceCurrent = checkNotNull(result.find { it.name == "Alice" && it.isCurrent == true }) {
-            "Current Silver/Alice record not found"
-        }
+        val aliceCurrent =
+            checkNotNull(result.find { it.name == "Alice" && it.isCurrent == true }) {
+                "Current Silver/Alice record not found"
+            }
         assertEquals(Instant.parse("2024-06-15T00:00:00Z"), aliceCurrent.validFrom)
         assertNull(aliceCurrent.validTo, "Current record: validTo must be null")
 
@@ -188,40 +210,48 @@ class ScdType2ResilienceTest : SparkTestBase() {
     // ── Test 3: V1 DataFrame decoded as ScdDimension (backwards compatibility) ─
 
     /**
-     * Documents backwards compatibility behavior: reading V1-shape data (no temporal columns)
-     * with the V2 [ScdDimension] model whose temporal fields are nullable.
+     * Proves that `nullable` alone is NOT sufficient for backwards compatibility.
      *
-     * The name-based decoder finds no columns named `validFrom`, `validTo`, or `isCurrent`
-     * in the V1 schema — their column index resolves to -1 and they are skipped. The
-     * kotlinx.serialization generated deserializer treats unvisited nullable fields as null
-     * (implicit default). Original V1 fields are decoded correctly.
+     * [ScdDimension] declares `validFrom`, `validTo`, and `isCurrent` as nullable (`T?`) but
+     * without explicit Kotlin default values (`= null`). When V1 data (no temporal columns) is
+     * decoded with this model, kotlinx.serialization throws [kotlinx.serialization.MissingFieldException]
+     * because the generated deserializer treats fields without a declared default as REQUIRED —
+     * even when the type is nullable.
      *
-     * This is graceful degradation: adding nullable SCD columns to the Kotlin model does
-     * not break reading of pre-migration data. No migration of the data is required before
-     * the model can be deployed.
+     * **What this proves:** nullability and optionality are distinct concepts in the
+     * kotlinx.serialization model. A field typed `T?` is nullable (can hold null at runtime)
+     * but is still required during deserialization unless an explicit `= null` default is declared.
+     * Deploying a V2 model with nullable-but-required SCD columns against a V1 dataset will
+     * crash at decode time, not silently produce nulls.
+     *
+     * See Test 5 ([ScdDimensionWithDefaults]) for the correct pattern: explicit `= null`
+     * defaults make the fields genuinely optional during deserialization.
      */
+    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
     @Test
     @Order(3)
-    fun `v1 data decoded as scd type 2 model - absent nullable columns default to null`() {
+    fun `v1 data decoded as scd type 2 model - nullable without default throws MissingFieldException`() {
         val v1Df = v1Data.toSerializableDataFrame(spark)
 
         // V1 schema has [id, name, tier]; ScdDimension expects [id, name, tier, validFrom?, validTo?, isCurrent?].
-        // The decoder skips the three absent nullable columns — no exception, no silent type coercion.
-        val result = v1Df.toSerializableKotlinList<ScdDimension>()
+        // Nullable fields without explicit = null defaults are REQUIRED by kotlinx.serialization —
+        // the deserializer throws rather than substituting null for absent columns.
+        val ex =
+            assertThrows<MissingFieldException> {
+                v1Df.toSerializableKotlinList<ScdDimension>()
+            }
 
-        assertEquals(3, result.size, "All V1 records should decode despite missing temporal columns")
-        result.forEach { customer ->
-            assertNull(customer.validFrom, "Absent validFrom should default to null")
-            assertNull(customer.validTo,   "Absent validTo should default to null")
-            assertNull(customer.isCurrent, "Absent isCurrent should default to null")
-        }
+        assertTrue(
+            ex.message?.contains("validFrom") == true ||
+                ex.message?.contains("validTo") == true ||
+                ex.message?.contains("isCurrent") == true,
+            "MissingFieldException must name at least one of the absent SCD temporal fields — " +
+                "proves these nullable fields are treated as required by the deserializer",
+        )
 
-        // Original V1 fields must be decoded correctly
-        val alice = checkNotNull(result.find { it.name == "Alice" }) { "Alice not found" }
-        assertEquals(1,      alice.id)
-        assertEquals("Gold", alice.tier)
-
-        println("[Test 3] Backwards compatibility: V1 data → ScdDimension — 3 absent nullable columns default to null, V1 fields intact")
+        println("[Test 3] EVIDENCE: nullable T? without = null default is required during deserialization")
+        println("[Test 3] Exception: ${ex.message}")
+        println("[Test 3] Fix: declare fields with explicit = null (see Test 5 — ScdDimensionWithDefaults)")
     }
 
     // ── Test 4: Pre-flight schema drift detection for SCD migration ───────────
@@ -239,8 +269,8 @@ class ScdType2ResilienceTest : SparkTestBase() {
     fun `schema drift detection identifies three missing scd type 2 columns`() {
         val v1Df = v1Data.toSerializableDataFrame(spark)
 
-        val expectedSchema = schemaFor(serializer<ScdDimension>())  // V2 model expectation
-        val actualSchema   = v1Df.schema()                          // V1 data reality
+        val expectedSchema = schemaFor(serializer<ScdDimension>()) // V2 model expectation
+        val actualSchema = v1Df.schema() // V1 data reality
 
         val diffs = SchemaDriftReport.compare(expectedSchema, actualSchema)
 
@@ -248,34 +278,42 @@ class ScdType2ResilienceTest : SparkTestBase() {
 
         val missingNames = diffs.map { it.fieldName }.toSet()
         assertTrue("validFrom" in missingNames, "validFrom must be in drift report")
-        assertTrue("validTo"   in missingNames, "validTo must be in drift report")
+        assertTrue("validTo" in missingNames, "validTo must be in drift report")
         assertTrue("isCurrent" in missingNames, "isCurrent must be in drift report")
 
         diffs.forEach { diff ->
-            assertEquals(DriftKind.FIELD_REMOVED, diff.kind,
-                "'${diff.fieldName}' should be FIELD_REMOVED — present in model, absent from data")
-            assertNull(diff.actualType,
-                "'${diff.fieldName}' should have no actual type (column absent from V1 schema)")
+            assertEquals(
+                DriftKind.FIELD_REMOVED,
+                diff.kind,
+                "'${diff.fieldName}' should be FIELD_REMOVED — present in model, absent from data",
+            )
+            assertNull(
+                diff.actualType,
+                "'${diff.fieldName}' should have no actual type (column absent from V1 schema)",
+            )
         }
 
         // Verify inferred Spark types: Instant → TimestampType → "timestamp", Boolean → "boolean"
         assertEquals("timestamp", diffs.find { it.fieldName == "validFrom" }!!.expectedType)
-        assertEquals("timestamp", diffs.find { it.fieldName == "validTo"   }!!.expectedType)
-        assertEquals("boolean",   diffs.find { it.fieldName == "isCurrent" }!!.expectedType)
+        assertEquals("timestamp", diffs.find { it.fieldName == "validTo" }!!.expectedType)
+        assertEquals("boolean", diffs.find { it.fieldName == "isCurrent" }!!.expectedType)
 
-        val report = SchemaDriftReport(
-            trigger        = SchemaDriftReport.triggerFrom(diffs),
-            typeName       = "ScdDimension",
-            expectedSchema = expectedSchema,
-            actualSchema   = actualSchema,
-            diffs          = diffs
-        )
+        val report =
+            SchemaDriftReport(
+                trigger = SchemaDriftReport.triggerFrom(diffs),
+                typeName = "ScdDimension",
+                expectedSchema = expectedSchema,
+                actualSchema = actualSchema,
+                diffs = diffs,
+            )
         println(report.format())
 
         // FIELD_REMOVED takes priority in triggerFrom() — all 3 diffs are FIELD_REMOVED
         assertEquals(DriftTrigger.MISSING_FIELD, report.trigger)
 
-        println("[Test 4] Pre-flight drift: 3 SCD columns detected as missing — validFrom(timestamp), validTo(timestamp), isCurrent(boolean)")
+        println(
+            "[Test 4] Pre-flight drift: 3 SCD columns detected as missing — validFrom(timestamp), validTo(timestamp), isCurrent(boolean)",
+        )
     }
 
     // ── Test 5: Workaround for Test 3 gap — explicit = null defaults ──────────
@@ -301,12 +339,12 @@ class ScdType2ResilienceTest : SparkTestBase() {
         assertEquals(3, result.size, "All V1 records should decode when temporal fields have explicit defaults")
         result.forEach { customer ->
             assertNull(customer.validFrom, "Absent validFrom should be null")
-            assertNull(customer.validTo,   "Absent validTo should be null")
+            assertNull(customer.validTo, "Absent validTo should be null")
             assertNull(customer.isCurrent, "Absent isCurrent should be null")
         }
 
         val alice = checkNotNull(result.find { it.name == "Alice" }) { "Alice not found" }
-        assertEquals(1,      alice.id)
+        assertEquals(1, alice.id)
         assertEquals("Gold", alice.tier)
 
         println("[Test 5] Workaround confirmed: ScdDimensionWithDefaults reads V1 data — temporal columns null, V1 fields intact")
