@@ -57,10 +57,6 @@ make test
 This project includes a production-ready Unity Catalog setup with PostgreSQL backend for persistent metadata storage.
 Integration uses Unity Catalog's **REST API** for catalog operations.
 
-> **Note:** This implementation uses the Unity Catalog REST API instead of the Spark connector due to ANTLR dependency
-> conflicts between Delta Lake 3.2.0 and Spark 4.0.0. See [docs/UNITY_CATALOG_SETUP.md](devdocs/UNITY_CATALOG_SETUP.md)
-> for details.
-
 ### Architecture
 
 The Unity Catalog stack consists of three services:
