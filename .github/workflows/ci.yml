@@ -34,7 +34,7 @@ jobs:
 
       - name: Upload Semgrep report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: semgrep-report
           path: build/reports/semgrep/results.json
@@ -63,7 +63,7 @@ jobs:
 
       - name: Upload Detekt report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: detekt-report
           path: build/reports/detekt/
