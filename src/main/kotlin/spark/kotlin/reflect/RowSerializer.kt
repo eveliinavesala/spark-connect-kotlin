@@ -5,6 +5,7 @@ import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types.StructType
 import kotlin.reflect.KProperty1
 import kotlin.reflect.KType
+import kotlin.reflect.full.createType
 import kotlin.reflect.full.memberProperties
 import kotlin.reflect.jvm.isAccessible
 import kotlin.reflect.jvm.jvmErasure
@@ -82,7 +83,13 @@ internal class RowSerializer private constructor(
                     .memberProperties
                     .find { it.name == fieldName }
                     ?.also { it.isAccessible = true }
-            return convertKotlinValueToSpark(runtimeProp?.call(obj))
+                    ?: return null
+            // Resolve the property's declared type against the runtime subtype's type arguments
+            // so that generic fields (e.g. List<Address>, Box<String>) are not erased to List<*>.
+            // For non-generic subtypes buildTypeArgMap returns an empty map and resolveTypeParam
+            // returns the type unchanged.
+            val runtimeType = resolveTypeParam(runtimeProp.returnType, buildTypeArgMap(obj::class.createType()))
+            return convertKotlinValueToSpark(runtimeProp.call(obj), runtimeType)
         }
     }
 

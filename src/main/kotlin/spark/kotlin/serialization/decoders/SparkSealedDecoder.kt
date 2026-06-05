@@ -6,6 +6,7 @@ import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.StructureKind
 import kotlinx.serialization.encoding.AbstractDecoder
 import kotlinx.serialization.encoding.CompositeDecoder
 import kotlinx.serialization.modules.SerializersModule
@@ -55,8 +56,10 @@ internal class SparkSealedDecoder(
  * Fields of other subtypes (absent in this subtype's descriptor) remain in the row as nulls
  * and are simply not visited.
  *
- * Nested structures within sealed subtype fields are not currently supported;
- * [beginStructure] returns `this` as a no-op.
+ * Nested structures (CLASS, LIST, MAP) are handled by delegating [beginStructure] to the
+ * appropriate specialized decoder, passing [resolvedColumnIndex] so the child reads from
+ * the correct column in the flat row. Datetime types are intercepted in
+ * [decodeSerializableValue] before any structure delegation occurs.
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkSealedSubtypeDecoder(
@@ -72,14 +75,19 @@ internal class SparkSealedSubtypeDecoder(
             row.fieldIndex(subtypeDescriptor.getElementName(i))
         }
 
+    // The column index resolved by the most recent decodeElementIndex call.
+    // Primitive decode calls and beginStructure both use this value.
+    private var resolvedColumnIndex = 0
+
     override fun decodeElementIndex(descriptor: SerialDescriptor): Int =
         if (currentElementIndex < descriptor.elementsCount) {
+            resolvedColumnIndex = fieldColumnIndices[currentElementIndex]
             currentElementIndex++
         } else {
             CompositeDecoder.DECODE_DONE
         }
 
-    private fun col() = fieldColumnIndices[currentElementIndex - 1]
+    private fun col() = resolvedColumnIndex
 
     override fun decodeBoolean(): Boolean = row.getBoolean(col())
 
@@ -128,8 +136,22 @@ internal class SparkSealedSubtypeDecoder(
             }
         }
 
-    // Nested structures within sealed subtype fields are not yet supported
-    override fun beginStructure(descriptor: SerialDescriptor): CompositeDecoder = this
+    override fun beginStructure(descriptor: SerialDescriptor): CompositeDecoder =
+        when (descriptor.kind) {
+            StructureKind.LIST -> {
+                val sparkList = row.getList<Any>(col())
+                SparkListDecoder(sparkList.toList(), serializersModule)
+            }
+            StructureKind.MAP -> {
+                SparkMapDecoder(row.getJavaMap(col()), serializersModule)
+            }
+            StructureKind.CLASS ->
+                when (descriptor.serialName) {
+                    "kotlinx.datetime.LocalDate", "kotlinx.datetime.Instant" -> this
+                    else -> SparkStructDecoder(row, col(), serializersModule)
+                }
+            else -> this
+        }
 
     override fun endStructure(descriptor: SerialDescriptor) = Unit
 }

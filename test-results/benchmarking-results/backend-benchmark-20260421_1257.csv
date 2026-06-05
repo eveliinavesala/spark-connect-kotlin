@@ -1,0 +1,4 @@
+timestamp,backend,workload,n_rows,warmup_rounds,measure_rounds,median_ms,min_ms,max_ms,rows_per_sec_median
+20260421_1257,serialize,encode-only,8582,5,10,31.2,25.5,49.9,275396
+20260421_1257,serialize,schema-recompute,1,5,10,0.0,0.0,0.0,1677852
+20260421_1257,reflect,decode-only,8582,5,10,162.3,137.5,224.0,52887

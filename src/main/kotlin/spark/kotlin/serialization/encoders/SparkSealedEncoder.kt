@@ -1,12 +1,20 @@
 package spark.kotlin.serialization.encoders
 
+import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.toJavaInstant
+import kotlinx.datetime.toJavaLocalDate
 import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.descriptors.StructureKind
 import kotlinx.serialization.encoding.AbstractEncoder
 import kotlinx.serialization.encoding.CompositeEncoder
 import kotlinx.serialization.modules.SerializersModule
 import org.apache.spark.sql.catalyst.expressions.GenericRowWithSchema
 import org.apache.spark.sql.types.StructType
+import java.sql.Date
+import java.sql.Timestamp
 
 /**
  * [AbstractEncoder] for sealed class (`SEALED`) descriptors.
@@ -66,8 +74,12 @@ internal class SparkSealedEncoder(
  * [SparkSealedEncoder] reads [capturedFields] on [endStructure] to place values at their
  * correct positions in the flat union row.
  *
- * Nested structures within sealed subtype fields are not currently supported;
- * [beginStructure] returns `this` as a no-op.
+ * Nested structures (CLASS, LIST, MAP) are handled by delegating to the appropriate
+ * specialized encoder. The child encoder's `addToParent` callback stores the produced
+ * value in [capturedFields] under [currentFieldName].
+ *
+ * Datetime types ([LocalDate], [Instant]) are intercepted in [encodeSerializableValue]
+ * and converted to their Spark SQL equivalents ([Date], [Timestamp]) before capture.
  */
 @OptIn(ExperimentalSerializationApi::class)
 internal class SparkSealedSubtypeEncoder(
@@ -131,8 +143,35 @@ internal class SparkSealedSubtypeEncoder(
         capturedFields[currentFieldName] = enumDescriptor.getElementName(index)
     }
 
-    // Nested structures within sealed subtype fields are not yet supported
-    override fun beginStructure(descriptor: SerialDescriptor): CompositeEncoder = this
+    override fun <T> encodeSerializableValue(
+        serializer: SerializationStrategy<T>,
+        value: T,
+    ) {
+        when (serializer.descriptor.serialName) {
+            "kotlinx.datetime.LocalDate" -> {
+                capturedFields[currentFieldName] = Date.valueOf((value as LocalDate).toJavaLocalDate())
+            }
+            "kotlinx.datetime.Instant" -> {
+                capturedFields[currentFieldName] = Timestamp.from((value as Instant).toJavaInstant())
+            }
+            else -> super.encodeSerializableValue(serializer, value)
+        }
+    }
+
+    override fun beginStructure(descriptor: SerialDescriptor): CompositeEncoder {
+        val fieldName = currentFieldName
+        val addToParent: (Any?) -> Unit = { capturedFields[fieldName] = it }
+        return when (descriptor.kind) {
+            StructureKind.LIST -> SparkListEncoder(addToParent, serializersModule)
+            StructureKind.MAP -> SparkMapEncoder(addToParent, serializersModule)
+            StructureKind.CLASS ->
+                when (descriptor.serialName) {
+                    "kotlinx.datetime.LocalDate", "kotlinx.datetime.Instant" -> this
+                    else -> SparkStructEncoder(addToParent, serializersModule)
+                }
+            else -> this
+        }
+    }
 
     override fun endStructure(descriptor: SerialDescriptor) = Unit
 }

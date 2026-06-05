@@ -92,7 +92,10 @@ class SerializationCachePerformanceTest {
                             testResult,
                             testStatus,
                             failureReason,
-                            mapOf("test1_data_structure" to "HashMap", "test1_expected_complexity" to "O(1)"),
+                            mapOf(
+                                "test1_data_structure" to "HashMap",
+                                "test1_expected_complexity" to "O(1)",
+                            ),
                         )
                     size to timeNs
                 }
@@ -122,7 +125,10 @@ class SerializationCachePerformanceTest {
                             testResult,
                             testStatus,
                             failureReason,
-                            mapOf("test1_data_structure" to "ArrayList", "test1_expected_complexity" to "O(n)"),
+                            mapOf(
+                                "test1_data_structure" to "ArrayList",
+                                "test1_expected_complexity" to "O(n)",
+                            ),
                         )
                     size to timeNs
                 }
@@ -131,6 +137,32 @@ class SerializationCachePerformanceTest {
             val arrayListGrowth = arrayListTimes.last().second.toDouble() / arrayListTimes.first().second
             println("\nHashMap growth (10k→100k): ${String.format(Locale.ROOT, "%.2f", hashMapGrowth)}x")
             println("ArrayList growth (10k→100k): ${String.format(Locale.ROOT, "%.2f", arrayListGrowth)}x")
+
+            dataPoints.filter { it.metrics["test1_data_structure"] == "HashMap" }.forEach { point ->
+                val index = dataPoints.indexOf(point)
+                dataPoints[index] =
+                    point.copy(
+                        metrics =
+                            point.metrics +
+                                mapOf(
+                                    "test1_structure_growth_10k_100k" to
+                                        String.format(Locale.ROOT, "%.2f", hashMapGrowth),
+                                ),
+                    )
+            }
+
+            dataPoints.filter { it.metrics["test1_data_structure"] == "ArrayList" }.forEach { point ->
+                val index = dataPoints.indexOf(point)
+                dataPoints[index] =
+                    point.copy(
+                        metrics =
+                            point.metrics +
+                                mapOf(
+                                    "test1_structure_growth_10k_100k" to
+                                        String.format(Locale.ROOT, "%.2f", arrayListGrowth),
+                                ),
+                    )
+            }
 
             assertTrue(
                 hashMapGrowth < 3.0,

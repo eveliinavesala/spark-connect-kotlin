@@ -11,5 +11,5 @@
 # Pass Threshold: 0.2 <= degradation < 10.0
 #
 test_name,test_id,execution_id,execution_date,execution_time,sample_size,run_number,time_ns,warmup_iterations,jvm_version,jvm_vendor,os_name,os_version,os_arch,cpu_cores,max_memory_mb,total_memory_mb,free_memory_mb,kotlin_version,gradle_version,test_result,test_status,failure_reason,test4_baseline_time_ns,test4_degradation_ratio,test4_degradation_threshold,test4_memory_pressure_mb,test4_pressure_time_ns
-test4_memory_pressure,test4,exec_53697d82e813,2026-04-19,15:54:11.317,100000,1,41,100000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,134,93,2.3.0,8.14.3,PASSED,completed,,41,0.9512195121951219,10.0,100,39
-test4_memory_pressure,test4,exec_53697d82e813,2026-04-19,15:54:11.377,100000,2,39,100000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,299,60,2.3.0,8.14.3,PASSED,completed,,41,0.9512195121951219,10.0,100,39
+test4_memory_pressure,test4,exec_a7e545151c13,2026-04-21,18:36:48.771,100000,1,36,100000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,134,93,2.3.0,8.14.3,PASSED,completed,,36,0.9444444444444444,10.0,100,34
+test4_memory_pressure,test4,exec_a7e545151c13,2026-04-21,18:36:48.828,100000,2,34,100000,21.0.10,Eclipse Adoptium,Linux,6.8.0-110-generic,amd64,16,512,305,66,2.3.0,8.14.3,PASSED,completed,,36,0.9444444444444444,10.0,100,34

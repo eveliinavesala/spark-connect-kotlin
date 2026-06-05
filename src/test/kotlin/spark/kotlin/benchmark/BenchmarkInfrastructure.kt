@@ -2,6 +2,7 @@ package spark.kotlin.benchmark
 
 import java.io.BufferedWriter
 import java.io.File
+import java.io.FileWriter
 import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -152,16 +153,50 @@ class PerformanceDataWriter(
             println("⚠ No data points to write for $testId")
             return
         }
+        val metricKeys = dataPoints.flatMap { it.metrics.keys }.toSet().sorted()
+        val headers = buildHeaders(metricKeys)
         val file = File(outputDir, "$testId.csv")
-        file.bufferedWriter().use { writer ->
-            writeMetadataHeader(writer, metadata)
-            writeColumnHeaders(writer, dataPoints.first().metrics.keys)
-            writeDataRows(writer, dataPoints)
+
+        if (!file.exists()) {
+            file.bufferedWriter().use { writer ->
+                writeMetadataHeader(writer, metadata)
+                writeColumnHeaders(writer, headers)
+                writeDataRows(writer, dataPoints, metricKeys)
+            }
+            println("✓ Performance data written to: ${file.absolutePath}")
+        } else {
+            val existingHeaders = readExistingHeaders(file)
+            if (existingHeaders == headers) {
+                BufferedWriter(FileWriter(file, true)).use { writer ->
+                    writeDataRows(writer, dataPoints, metricKeys)
+                }
+                println("✓ Performance data appended to: ${file.absolutePath}")
+            } else {
+                error(
+                    buildString {
+                        appendLine("CSV schema mismatch for test '$testId'.")
+                        appendLine("Existing file: ${file.absolutePath}")
+                        appendLine("To preserve append-only semantics, write is aborted.")
+                        appendLine("Delete/reset the file or align metric keys in the test before rerunning.")
+                    },
+                )
+            }
         }
-        println("✓ Performance data written to: ${file.absolutePath}")
+
         println("  - Execution ID: ${dataPoints.firstOrNull()?.executionId}")
         println("  - Data points: ${dataPoints.size}")
         println("  - Test result: ${dataPoints.firstOrNull()?.testResult}")
+    }
+
+    private fun readExistingHeaders(file: File): List<String>? {
+        val headerLine =
+            file.useLines { lines ->
+                lines.firstOrNull { line ->
+                    val trimmed = line.trim()
+                    trimmed.isNotEmpty() && !trimmed.startsWith("#")
+                }
+            }
+        return headerLine?.trimEnd('\r')?.split(",")
     }
 
     private fun writeMetadataHeader(
@@ -183,45 +218,46 @@ class PerformanceDataWriter(
         writer.write("#\n")
     }
 
+    private fun buildHeaders(metricKeys: List<String>): List<String> =
+        listOf(
+            "test_name",
+            "test_id",
+            "execution_id",
+            "execution_date",
+            "execution_time",
+            "sample_size",
+            "run_number",
+            "time_ns",
+            "warmup_iterations",
+            "jvm_version",
+            "jvm_vendor",
+            "os_name",
+            "os_version",
+            "os_arch",
+            "cpu_cores",
+            "max_memory_mb",
+            "total_memory_mb",
+            "free_memory_mb",
+            "kotlin_version",
+            "gradle_version",
+            "test_result",
+            "test_status",
+            "failure_reason",
+        ) + metricKeys
+
     private fun writeColumnHeaders(
         writer: BufferedWriter,
-        metricKeys: Set<String>,
+        headers: List<String>,
     ) {
-        val baseHeaders =
-            listOf(
-                "test_name",
-                "test_id",
-                "execution_id",
-                "execution_date",
-                "execution_time",
-                "sample_size",
-                "run_number",
-                "time_ns",
-                "warmup_iterations",
-                "jvm_version",
-                "jvm_vendor",
-                "os_name",
-                "os_version",
-                "os_arch",
-                "cpu_cores",
-                "max_memory_mb",
-                "total_memory_mb",
-                "free_memory_mb",
-                "kotlin_version",
-                "gradle_version",
-                "test_result",
-                "test_status",
-                "failure_reason",
-            )
-        writer.write((baseHeaders + metricKeys.sorted()).joinToString(","))
+        writer.write(headers.joinToString(","))
         writer.write("\n")
     }
 
     private fun writeDataRows(
         writer: BufferedWriter,
         dataPoints: List<PerformanceDataPoint>,
+        metricKeys: List<String>,
     ) {
-        val allMetricKeys = dataPoints.flatMap { it.metrics.keys }.toSet().sorted()
         dataPoints.forEach { point ->
             val baseValues =
                 listOf(
@@ -249,7 +285,7 @@ class PerformanceDataWriter(
                     point.testStatus,
                     point.failureReason,
                 )
-            val metricValues = allMetricKeys.map { key -> point.metrics[key] ?: "" }
+            val metricValues = metricKeys.map { key -> point.metrics[key] ?: "" }
             writer.write((baseValues + metricValues).joinToString(",") { escapeCSV(it) })
             writer.write("\n")
         }
