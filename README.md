@@ -54,7 +54,7 @@ make test
 
 ## Unity Catalog Integration
 
-This project includes a production-ready Unity Catalog setup with PostgreSQL backend for persistent metadata storage.
+This project includes a Unity Catalog setup with PostgreSQL backend for persistent metadata storage.
 Integration uses Unity Catalog's **REST API** for catalog operations.
 
 ### Architecture
