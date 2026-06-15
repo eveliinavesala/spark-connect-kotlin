@@ -151,10 +151,14 @@ internal class SparkSealedSubtypeEncoder(
             "kotlinx.datetime.LocalDate" -> {
                 capturedFields[currentFieldName] = Date.valueOf((value as LocalDate).toJavaLocalDate())
             }
+
             "kotlinx.datetime.Instant" -> {
                 capturedFields[currentFieldName] = Timestamp.from((value as Instant).toJavaInstant())
             }
-            else -> super.encodeSerializableValue(serializer, value)
+
+            else -> {
+                super.encodeSerializableValue(serializer, value)
+            }
         }
     }
 
@@ -162,14 +166,24 @@ internal class SparkSealedSubtypeEncoder(
         val fieldName = currentFieldName
         val addToParent: (Any?) -> Unit = { capturedFields[fieldName] = it }
         return when (descriptor.kind) {
-            StructureKind.LIST -> SparkListEncoder(addToParent, serializersModule)
-            StructureKind.MAP -> SparkMapEncoder(addToParent, serializersModule)
-            StructureKind.CLASS ->
+            StructureKind.LIST -> {
+                SparkListEncoder(addToParent, serializersModule)
+            }
+
+            StructureKind.MAP -> {
+                SparkMapEncoder(addToParent, serializersModule)
+            }
+
+            StructureKind.CLASS -> {
                 when (descriptor.serialName) {
                     "kotlinx.datetime.LocalDate", "kotlinx.datetime.Instant" -> this
                     else -> SparkStructEncoder(addToParent, serializersModule)
                 }
-            else -> this
+            }
+
+            else -> {
+                this
+            }
         }
     }
 

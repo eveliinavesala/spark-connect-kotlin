@@ -7,9 +7,13 @@ plugins {
     alias(libs.plugins.shadow)
     alias(libs.plugins.detekt)
     alias(libs.plugins.ktlint)
+    id("java-library") // unlocks the `api` configuration, needed below + for publishing
+    id("maven-publish") // required by JitPack — it runs `./gradlew publishToMavenLocal`
 }
 
-version = "1.0"
+group = "io.github.eveliinavesala" // JitPack rewrites this to com.github.eveliinavesala at serve time,
+// but Gradle still wants a real group for the generated POM.
+version = "0.1.0"
 
 dependencies {
     constraints {
@@ -21,12 +25,14 @@ dependencies {
         }
     }
 
-    implementation(libs.spark.connect.client) {
+    api(libs.spark.connect.client) {
         exclude(group = "org.slf4j", module = "jul-to-slf4j")
     }
     implementation(libs.kotlin.reflect)
     implementation(libs.kotlinx.datetime)
-    implementation(libs.kotlinx.serialization.core)
+    // api: KSerializer<T> is a direct parameter type on schemaFor(...) and
+    // toSerializableKotlinListInternal(...) — same compile-time exposure reasoning as above.
+    api(libs.kotlinx.serialization.core)
     implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.kotlin.test)
@@ -42,7 +48,6 @@ tasks.processResources {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
-// ----------------------------------------------------------------------------
 // Demo source sets
 //
 // "demo"     — exploration / thesis illustration code (app/, classes/, collections/)
@@ -53,7 +58,6 @@ tasks.processResources {
 //              Depends on demo output + test output (for SparkTestBase) + test runtime deps.
 //              Run with: ./gradlew demoTest
 //              NOT included in ./gradlew test (library tests only).
-// ----------------------------------------------------------------------------
 sourceSets {
     create("demo") {
         kotlin.srcDir("src/demo/kotlin")
@@ -91,7 +95,7 @@ tasks.register<Test>("demoTest") {
 }
 
 // Notebook fat JAR — bundles main library + full runtimeClasspath (Spark Connect, Arrow, gRPC, …)
-// so notebooks only need a single @file:DependsOn. Output goes to notebooks/lib/ and is gitignored.
+// so demo notebooks only need a single @file:DependsOn. Output goes to notebooks/lib/ and is gitignored.
 // Build: ./gradlew notebookFatJar
 val notebookFatJar =
     tasks.register<ShadowJar>("notebookFatJar") {
@@ -189,9 +193,7 @@ kotlin {
     jvmToolchain(21)
 }
 
-// ----------------------------------------------------------------------------
 // Detekt static analysis
-// ----------------------------------------------------------------------------
 detekt {
     buildUponDefaultConfig = true
     allRules = false
@@ -202,4 +204,23 @@ detekt {
 
 dependencies {
     detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.8")
+}
+
+// Shadow plugin auto-attaches a fat-jar variant to the `java` component whenever
+// maven-publish is also applied. We only want the thin jar + transitive POM deps
+// published (api/implementation, as configured above) — Skip the shadow variant explicitly.
+shadow {
+    addShadowVariantIntoJavaComponent = false
+}
+
+// Publishing — JitPack builds this by running `./gradlew publishToMavenLocal`.
+// `from(components["java"])` only pulls in the `main` source set's output and its
+// `api`/`implementation` dependency graph — demo/demoTest and the shadow fat jars
+// are separate source sets/tasks and are not included here.
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+        }
+    }
 }

@@ -5,6 +5,7 @@ build/
 !**/src/test/**/build/
 
 ### IntelliJ IDEA ###
+.idea/
 .idea/modules.xml
 .idea/jarRepositories.xml
 .idea/compiler.xml
@@ -44,8 +45,6 @@ bin/
 ### Mac OS ###
 .DS_Store
 
-/src/main/proto/*
-
 .env
 /.env
 
@@ -58,12 +57,7 @@ test-results/performance/*.csv
 ### Generated config (produced by make generate-config from .env + template)
 docker/unity-catalog/hibernate.properties
 
-### Docs
-/devdocs/*
-devdocs/*
-.idea/
-**/**/*.md
-
+### Jupyter
 notebooks/.ipynb_checkpoints/
 notebooks/.jupyter/
 
