@@ -33,6 +33,15 @@ import spark.kotlin.serialization.toSerializableKotlinList
  * All tests verify that name-based resolution produces correct field values regardless of
  * the column order returned by the external source.
  *
+ * ## Assertion policy
+ *
+ * Where a record has multiple fields and only some of them shift position between the
+ * physical schema and the descriptor, tests assert ALL fields of the record — not just
+ * the shifted one(s). A field whose position happens to coincide between schema and
+ * descriptor would still read correctly even if the decoder silently fell back to
+ * position-based lookup for that field; asserting only the shifted field would not catch
+ * that. Asserting the full record rules this out.
+ *
  * ## Scope
  *
  * - ✅ Encoding (Kotlin → Spark via `toSerializableDataFrame`): always safe, not tested here
@@ -241,6 +250,11 @@ class ColumnarFormatColumnOrderingTest : UnityCatalogTestBase() {
      * Kotlin code retains RecordV1 (no timestamp field):
      *   Position-based: reads timestamp (Long 1234567890) at pos 2 into amount (Double) → corruption
      *   Name-based:     looks up "amount" → finds at pos 3 → 99.99 / 77.77 ✓
+     *
+     * NOTE: userId (pos 0) and sessionId (pos 1) are unchanged between V1 and V2, so they
+     * would read correctly even under a position-based decoder. They are asserted anyway,
+     * so this test proves "the whole record decodes correctly", not just "the one field
+     * whose position changed happens to be right".
      */
     @Test
     @Order(2)
@@ -311,10 +325,15 @@ class ColumnarFormatColumnOrderingTest : UnityCatalogTestBase() {
 
         assertEquals(2, results.size)
 
+        // Full-record assertions for both rows — not just the shifted "amount" field.
         val original = checkNotNull(results.find { it.userId == "user_12345" }) { "Row for user_12345 not found" }
+        assertEquals("user_12345", original.userId)
+        assertEquals("session_67890", original.sessionId)
         assertEquals(99.99, original.amount, 0.001) // must NOT be 1234567890 (timestamp at pos 2)
 
         val evolved = checkNotNull(results.find { it.userId == "user_99999" }) { "Row for user_99999 not found" }
+        assertEquals("user_99999", evolved.userId)
+        assertEquals("session_11111", evolved.sessionId)
         assertEquals(77.77, evolved.amount, 0.001)
 
         println("[Test 2] Delta schema evolution: V1 decoder reads V2 rows correctly via name lookup")
@@ -457,6 +476,11 @@ class ColumnarFormatColumnOrderingTest : UnityCatalogTestBase() {
      *
      * Position-based: reads category (String at pos 2) into price (Double) → type error.
      * Name-based:     looks up "price" by name → finds at pos 3 → 19.99 / 29.99. ✓
+     *
+     * NOTE: "id" (pos 0) and "name" (pos 1) are at the same position in both the evolved
+     * catalog schema and the Product descriptor, so they would read correctly even under
+     * a position-based decoder. Both are asserted anyway, alongside "price", so this test
+     * proves the full record decodes correctly — not just the one shifted field.
      */
     @Test
     @Order(5)
@@ -482,8 +506,14 @@ class ColumnarFormatColumnOrderingTest : UnityCatalogTestBase() {
         val result = evolvedCatalogDf.toSerializableKotlinList<Product>()
 
         assertEquals(2, result.size)
-        assertEquals(19.99, result.find { it.id == 1 }!!.price, 0.001)
-        assertEquals(29.99, result.find { it.id == 2 }!!.price, 0.001)
+
+        val widget = checkNotNull(result.find { it.id == 1 }) { "Row for id=1 not found" }
+        assertEquals("Widget", widget.name)
+        assertEquals(19.99, widget.price, 0.001)
+
+        val gadget = checkNotNull(result.find { it.id == 2 }) { "Row for id=2 not found" }
+        assertEquals("Gadget", gadget.name)
+        assertEquals(29.99, gadget.price, 0.001)
 
         println("[Test 5] UC schema evolution: Product.price resolved at pos 3 by name, not pos 2 (category)")
     }
@@ -608,6 +638,10 @@ class ColumnarFormatColumnOrderingTest : UnityCatalogTestBase() {
      * Team A reads with the original Transaction class, unaware of the new columns.
      * Position-based: reads user_id (String at pos 1) into amount (Double) → type error.
      * Name-based: finds "amount" at pos 3, "timestamp" at pos 4 → correct values. ✓
+     *
+     * NOTE: both "amount" (pos 1 → pos 3) and "timestamp" (pos 2 → pos 4) shift position.
+     * Both are asserted for both rows — "id" (pos 0, unchanged) is implicitly verified via
+     * the `find` lookups below.
      */
     @Test
     @Order(8)
@@ -641,8 +675,14 @@ class ColumnarFormatColumnOrderingTest : UnityCatalogTestBase() {
         val transactions = auditSchemaDf.toSerializableKotlinList<Transaction>()
 
         assertEquals(2, transactions.size)
-        assertEquals(99.99, transactions.find { it.id == "txn_001" }!!.amount, 0.001)
-        assertEquals(49.99, transactions.find { it.id == "txn_002" }!!.amount, 0.001)
+
+        val txn1 = checkNotNull(transactions.find { it.id == "txn_001" }) { "Row for txn_001 not found" }
+        assertEquals(99.99, txn1.amount, 0.001)
+        assertEquals(1234567890L, txn1.timestamp)
+
+        val txn2 = checkNotNull(transactions.find { it.id == "txn_002" }) { "Row for txn_002 not found" }
+        assertEquals(49.99, txn2.amount, 0.001)
+        assertEquals(1234567900L, txn2.timestamp)
 
         println("[Test 8] Multi-team: Team A's decoder unaffected by Team B's audit column insertions")
     }

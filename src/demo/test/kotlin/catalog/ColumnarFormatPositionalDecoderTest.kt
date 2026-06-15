@@ -2,9 +2,11 @@ package catalog
 
 import classes.UnityCatalogTestBase
 import kotlinx.serialization.Serializable
+import org.apache.spark.SparkRuntimeException
 import org.apache.spark.sql.SaveMode
 import org.apache.spark.sql.functions.lit
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.MethodOrderer
 import org.junit.jupiter.api.Order
 import org.junit.jupiter.api.Test
@@ -27,15 +29,15 @@ import spark.kotlin.serialization.toSerializableDataFrame
  * | Test | Outcome            | Reason                                              |
  * |------|--------------------|-----------------------------------------------------|
  * | 0    | passes             | no decode step (control)                            |
- * | 1    | throws             | Double at pos 0 decoded as String → ClassCastException |
- * | 2    | throws             | Long (timestamp) at pos 2 decoded as Double → ClassCastException |
- * | 3    | throws             | Long at pos 0 decoded as String → ClassCastException |
- * | 4    | throws             | Double at pos 0 decoded as String → ClassCastException |
- * | 5    | throws             | category=NULL at pos 2 → SparkRuntimeException ROW_VALUE_IS_NULL (null check fires before type cast; second row would throw ClassCastException on "Electronics") |
+ * | 1    | throws CCE         | Double at pos 0 decoded as String → ClassCastException |
+ * | 2    | throws CCE         | Long (timestamp) at pos 2 decoded as Double → ClassCastException |
+ * | 3    | throws CCE         | Long at pos 0 decoded as String → ClassCastException |
+ * | 4    | throws CCE         | Double at pos 0 decoded as String → ClassCastException (requires inferSchema on CSV read) |
+ * | 5    | throws SRE         | category=NULL at pos 2 → SparkRuntimeException ROW_VALUE_IS_NULL (null check fires before type cast; second row would throw ClassCastException on "Electronics") |
  * | 6    | silent corruption  | String/String swap — incorrect field values, no exception |
  * | 7    | silent corruption  | String/String swap — incorrect field values, no exception |
- * | 8    | throws             | user_id=NULL at pos 1 → SparkRuntimeException ROW_VALUE_IS_NULL (same null-before-cast path as Test 5) |
- * | 9    | throws             | Int (warehouse_id) at pos 0 decoded as String → ClassCastException |
+ * | 8    | throws SRE         | user_id=NULL at pos 1 → SparkRuntimeException ROW_VALUE_IS_NULL (same null-before-cast path as Test 5) |
+ * | 9    | throws CCE         | Int (warehouse_id) at pos 0 decoded as String → ClassCastException |
  *
  * All 10 tests are GREEN: they assert the observed behavior of the positional decoder under column order mismatch.
  *
@@ -110,6 +112,20 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
 
     private val base = "/tmp/col-order-pos-test"
 
+    /**
+     * Asserts that [block] throws a [SparkRuntimeException] whose error class/message
+     * contains "ROW_VALUE_IS_NULL". Used by tests 5 and 8 to confirm the null-before-cast
+     * path specifically, not just "some exception".
+     */
+    private fun assertRowValueIsNull(block: () -> Unit): SparkRuntimeException {
+        val e = assertThrows<SparkRuntimeException> { block() }
+        assertTrue(
+            e.message?.contains("ROW_VALUE_IS_NULL") == true,
+            "Expected ROW_VALUE_IS_NULL in exception message but got: ${e.message}",
+        )
+        return e
+    }
+
     // ── Test 0: Control ───────────────────────────────────────────────────────
 
     /**
@@ -158,7 +174,7 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
 
         assertEquals("amount", reordered.schema().fields()[0].name()) // Double where String expected
 
-        assertThrows<Exception> {
+        assertThrows<ClassCastException> {
             reordered.toPositionalKotlinList<ColumnOrderTestRecord>()
         }.also { e ->
             println("[Test 1] Positional decoder threw ${e::class.simpleName}: ${e.message}")
@@ -171,7 +187,7 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
      * V2 schema: [userId, sessionId, timestamp(Long), amount(Double)]
      * Descriptor (RecordV1): [userId, sessionId, amount(Double)]
      *
-     * Position 2: decodeDouble() on Long (timestamp) → getDouble() on Long → ClassCastException.
+     * Position 2: decodeDouble() on Long (timestamp) → getDouble() on a boxed Long → ClassCastException.
      */
     @Test
     @Order(2)
@@ -199,7 +215,7 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
         val v2 = spark.read().format("delta").load("$base/test2/v2")
         assertEquals("timestamp", v2.schema().fields()[2].name()) // Long at pos 2, descriptor expects Double
 
-        assertThrows<Exception> {
+        assertThrows<ClassCastException> {
             v2.toPositionalKotlinList<RecordV1>()
         }.also { e ->
             println("[Test 2] Positional decoder threw ${e::class.simpleName}: ${e.message}")
@@ -230,7 +246,7 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
         val reordered = spark.read().parquet("$base/test3/iceberg_sim")
         assertEquals("timestamp", reordered.schema().fields()[0].name()) // Long where String expected
 
-        assertThrows<Exception> {
+        assertThrows<ClassCastException> {
             reordered.toPositionalKotlinList<ColumnOrderTestRecord>()
         }.also { e ->
             println("[Test 3] Positional decoder threw ${e::class.simpleName}: ${e.message}")
@@ -244,6 +260,11 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
      * Descriptor: [userId(String), sessionId, timestamp(Long), amount(Double)]
      *
      * Position 0: decodeString() on Double (amount) → ClassCastException.
+     *
+     * NOTE: inferSchema is required on read. Without it, Spark's CSV reader returns
+     * StringType for every column, "amount" would be a string-typed column, and
+     * decodeString() would succeed with a wrong value (silent corruption) instead
+     * of throwing — which would misrepresent this as a "throws" case.
      */
     @Test
     @Order(4)
@@ -262,11 +283,20 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
             spark
                 .read()
                 .option("header", "true")
+                .option("inferSchema", "true")
                 .csv("$base/test4/reordered_csv")
 
         assertEquals("amount", reordered.schema().fields()[0].name()) // Double where String expected
+        assertEquals(
+            "double",
+            reordered
+                .schema()
+                .fields()[0]
+                .dataType()
+                .typeName(),
+        ) // confirm inference worked
 
-        assertThrows<Exception> {
+        assertThrows<ClassCastException> {
             reordered.toPositionalKotlinList<ColumnOrderTestRecord>()
         }.also { e ->
             println("[Test 4] Positional decoder threw ${e::class.simpleName}: ${e.message}")
@@ -279,11 +309,13 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
      * Evolved catalog schema: [id(Int), name(String), category(String), price(Decimal)]
      * Descriptor (Product): [id(Int), name(String), price(Double)]
      *
-     * Position 2: decodeDouble() on String (category) → ClassCastException.
+     * Position 2: decodeDouble() on String (category). First row's category is NULL,
+     * so the typed getter (getDouble) throws SparkRuntimeException ROW_VALUE_IS_NULL
+     * before any type comparison happens — the null check fires first.
      */
     @Test
     @Order(5)
-    fun `unity catalog - positional decoder throws reading String category as Double price`() {
+    fun `unity catalog - positional decoder throws ROW_VALUE_IS_NULL reading null category as Double price`() {
         val evolvedCatalogDf =
             spark.sql(
                 """
@@ -298,7 +330,7 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
             evolvedCatalogDf.schema().fields()[2].name(),
         ) // String at pos 2, descriptor expects Double
 
-        assertThrows<Exception> {
+        assertRowValueIsNull {
             evolvedCatalogDf.toPositionalKotlinList<Product>()
         }.also { e ->
             println("[Test 5] Positional decoder threw ${e::class.simpleName}: ${e.message}")
@@ -399,11 +431,14 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
      * Audit schema: [id(String), user_id(String), region(String), amount(Decimal), timestamp(Long)]
      * Descriptor (Transaction): [id(String), amount(Double), timestamp(Long)]
      *
-     * Position 1: decodeDouble() on String (user_id) → ClassCastException.
+     * Position 1: decodeDouble() on String (user_id). First row's user_id is NULL,
+     * so getDouble(1) throws SparkRuntimeException ROW_VALUE_IS_NULL before the
+     * type mismatch on row 2's "user_123" is ever reached — same null-before-cast
+     * path as Test 5.
      */
     @Test
     @Order(8)
-    fun `multi-team catalog - positional decoder throws reading String user_id as Double amount`() {
+    fun `multi-team catalog - positional decoder throws ROW_VALUE_IS_NULL reading null user_id as Double amount`() {
         val auditSchemaDf =
             spark.sql(
                 """
@@ -423,7 +458,7 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
 
         assertEquals("user_id", auditSchemaDf.schema().fields()[1].name()) // String at pos 1, descriptor expects Double
 
-        assertThrows<Exception> {
+        assertRowValueIsNull {
             auditSchemaDf.toPositionalKotlinList<Transaction>()
         }.also { e ->
             println("[Test 8] Positional decoder threw ${e::class.simpleName}: ${e.message}")
@@ -457,7 +492,7 @@ class ColumnarFormatPositionalDecoderTest : UnityCatalogTestBase() {
             externalToolDf.schema().fields()[0].name(),
         ) // Int at pos 0, descriptor expects String
 
-        assertThrows<Exception> {
+        assertThrows<ClassCastException> {
             externalToolDf.toPositionalKotlinList<InventoryItem>()
         }.also { e ->
             println("[Test 9] Positional decoder threw ${e::class.simpleName}: ${e.message}")

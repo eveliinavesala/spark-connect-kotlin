@@ -142,15 +142,21 @@ internal class SparkSealedSubtypeDecoder(
                 val sparkList = row.getList<Any>(col())
                 SparkListDecoder(sparkList.toList(), serializersModule)
             }
+
             StructureKind.MAP -> {
                 SparkMapDecoder(row.getJavaMap(col()), serializersModule)
             }
-            StructureKind.CLASS ->
+
+            StructureKind.CLASS -> {
                 when (descriptor.serialName) {
                     "kotlinx.datetime.LocalDate", "kotlinx.datetime.Instant" -> this
                     else -> SparkStructDecoder(row, col(), serializersModule)
                 }
-            else -> this
+            }
+
+            else -> {
+                this
+            }
         }
 
     override fun endStructure(descriptor: SerialDescriptor) = Unit

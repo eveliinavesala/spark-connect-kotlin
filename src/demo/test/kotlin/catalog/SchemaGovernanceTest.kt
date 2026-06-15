@@ -6,7 +6,6 @@ import classes.UnityCatalogTestBase
 import kotlinx.serialization.serializer
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeAll
@@ -34,12 +33,13 @@ import kotlin.reflect.typeOf
  * Run with: ./gradlew demoTest   (requires `make uc-test` to have built the compose stack)
  *
  * Demonstrates:
- *   1. Code-to-Catalog  — push a Kotlin class schema to Unity Catalog via REST
+ *   1. Code-to-Catalog  — push a Kotlin class schema to Unity Catalog via REST, and confirm
+ *                          the round-tripped UC columns match the source schema exactly
  *   2. Catalog-to-Code  — pull the registered schema and compare against a new Kotlin class
- *   3. Drift detection  — SchemaDriftReport shows which fields diverged
+ *   3. Drift detection  — SchemaDriftReport shows which fields diverged, and ONLY those fields
  *   4. Pre-flight check — compare before encoding to catch drift before any data moves
  *   5. Type-gap registration — reflection-backend types registered via getSparkSchema
- *   6. Full workflow    — encode → register → upgrade detected → migration required
+ *   6. Full workflow    — encode → register → schema match asserted → upgrade detected → migration required
  *
  * The UC container provides the screenshot evidence for the thesis.
  */
@@ -92,7 +92,26 @@ class SchemaGovernanceTest : UnityCatalogTestBase() {
 
         val tables = UnityCatalogRestClient.listTables(baseUrl, CATALOG, SCHEMA)
         assertTrue(tables.contains(UC_TABLE), "Table 'customers' should appear in UC listing")
-        println("CustomerV1 schema registered: $CATALOG.$SCHEMA.$UC_TABLE")
+
+        // Round-trip check: read the columns back from UC and confirm they match what we sent.
+        // `registered == true` only tells us the API call succeeded — it does not confirm UC
+        // stored the schema we think it did (e.g. a silently dropped or mistyped column).
+        val ucColumns = UnityCatalogRestClient.getTableColumns(baseUrl, CATALOG, SCHEMA, UC_TABLE)
+        val catalogSchema = ucColumns.toStructType()
+
+        assertEquals(
+            schema.fieldNames().toSet(),
+            catalogSchema.fieldNames().toSet(),
+            "UC-registered columns for $UC_TABLE must match CustomerV1's fields exactly",
+        )
+
+        val driftAfterRegistration = SchemaDriftReport.compare(schema, catalogSchema)
+        assertTrue(
+            driftAfterRegistration.isEmpty(),
+            "Freshly-registered CustomerV1 schema should show no drift against UC: $driftAfterRegistration",
+        )
+
+        println("CustomerV1 schema registered and verified: $CATALOG.$SCHEMA.$UC_TABLE")
     }
 
     // ── 2. Catalog-to-Code: pull UC schema and detect V2 drift ───────────────
@@ -127,6 +146,18 @@ class SchemaGovernanceTest : UnityCatalogTestBase() {
             "Drift report must identify 'score' as absent in the UC-registered schema",
         )
         assertEquals(DriftTrigger.MISSING_FIELD, report.trigger)
+
+        // Negative check: the V1/V2 contracts are identical apart from 'score'. If the drift
+        // report also flags id/name/tier, that's either a bug in SchemaDriftReport.compare or
+        // an unexpected UC type round-trip difference — either way it would mean "drift"
+        // is too noisy to act on, since a developer couldn't tell the real change ('score')
+        // from incidental noise.
+        val unexpectedDiffFields = diffs.filter { it.fieldName in setOf("id", "name", "tier") }
+        assertTrue(
+            unexpectedDiffFields.isEmpty(),
+            "Only 'score' should differ between CustomerV2 and the UC V1 schema, " +
+                "but also found diffs for: ${unexpectedDiffFields.map { it.fieldName }}",
+        )
     }
 
     // ── 3. Pre-flight check: compare before encoding ──────────────────────────
@@ -166,9 +197,18 @@ class SchemaGovernanceTest : UnityCatalogTestBase() {
             )
         }
 
+        // Pre-flight must be blocked (non-empty diffs) — an empty diff here would mean
+        // CustomerV2 was incorrectly judged compatible with the UC V1 schema, and encoding
+        // would proceed without the 'score' column existing in the target table.
+        assertTrue(diffs.isNotEmpty(), "Pre-flight must detect a schema mismatch for CustomerV2 vs UC V1")
         assertTrue(
-            diffs.any { it.fieldName == "score" },
-            "Pre-flight must flag 'score' mismatch before encoding starts",
+            diffs.any { it.fieldName == "score" && it.kind == DriftKind.FIELD_REMOVED },
+            "Pre-flight must flag 'score' as the missing field before encoding starts",
+        )
+        assertEquals(
+            DriftTrigger.MISSING_FIELD,
+            SchemaDriftReport.triggerFrom(diffs),
+            "Pre-flight trigger should classify this as a missing-field drift",
         )
     }
 
@@ -203,15 +243,29 @@ class SchemaGovernanceTest : UnityCatalogTestBase() {
         val v3FieldNames = v3Schema.fieldNames().toSet()
         assertEquals(v3FieldNames, ucFieldNames, "UC schema must cover all V3 fields")
 
-        // Verify 'score' is now nullable in both UC and the Kotlin class
-        val scoreCol = ucColumns.find { it["name"] == "score" }!!
-        assertNotNull(scoreCol, "'score' must be registered in UC for V3")
+        // Kotlin-side check: confirm CustomerV3.score is actually declared nullable (Int?)
+        // in the descriptor we just registered from. Without this, the UC-side check below
+        // could pass "by coincidence" even if the Kotlin model itself weren't nullable.
+        val kotlinScoreField =
+            checkNotNull(v3Schema.fields().find { it.name() == "score" }) {
+                "CustomerV3 schema must contain a 'score' field"
+            }
+        assertTrue(
+            kotlinScoreField.nullable(),
+            "CustomerV3.score must be declared nullable (Int?) in the Kotlin schema",
+        )
+
+        // UC-side check: confirm the registered column is ALSO nullable.
+        val scoreCol =
+            checkNotNull(ucColumns.find { it["name"] == "score" }) {
+                "'score' must be registered in UC for V3"
+            }
         assertTrue(
             scoreCol["nullable"] as Boolean,
             "'score' must be nullable in UC — matching CustomerV3.score: Int?",
         )
 
-        println("V3 migration: score column registered as nullable in Unity Catalog")
+        println("V3 migration: score column registered as nullable in both Kotlin schema and Unity Catalog")
     }
 
     // ── 5. Type-gap registration: FinancialReport (BigDecimal) via reflection ─
@@ -240,12 +294,25 @@ class SchemaGovernanceTest : UnityCatalogTestBase() {
         assertTrue(registered, "FinancialReport schema should register via reflection backend")
 
         val ucColumns = UnityCatalogRestClient.getTableColumns(baseUrl, CATALOG, SCHEMA, FINANCIAL_TABLE)
-        val amountCol = ucColumns.find { it["name"] == "amount" }!!
-        assertNotNull(amountCol, "'amount' column must be present in UC")
+
+        val amountCol =
+            checkNotNull(ucColumns.find { it["name"] == "amount" }) {
+                "'amount' column must be present in UC"
+            }
         assertEquals(
             "DECIMAL",
             (amountCol["type_name"] as String).uppercase(),
             "BigDecimal → DECIMAL in Unity Catalog",
+        )
+
+        // Round-trip check: confirm the full reflection-derived schema matches what UC stored,
+        // not just the one 'amount' field. A reflection bridge that handles BigDecimal but
+        // drops/mistypes other fields would otherwise pass this test.
+        val catalogSchema = ucColumns.toStructType()
+        assertEquals(
+            schema.fieldNames().toSet(),
+            catalogSchema.fieldNames().toSet(),
+            "UC-registered columns for $FINANCIAL_TABLE must match the reflection-derived FinancialReport schema",
         )
 
         println("BigDecimal registered as DECIMAL — reflection bridges the serialization type gap")
@@ -275,11 +342,27 @@ class SchemaGovernanceTest : UnityCatalogTestBase() {
         val v1Drifts = SchemaDriftReport.compare(localSchema, catalogSchema)
         println("Step 2: V1 DataFrame vs UC schema — drift: ${if (v1Drifts.isEmpty()) "none" else v1Drifts.toString()}")
 
+        // This is the assertion the test name promises: the encoded V1 DataFrame's schema
+        // must match what's registered in UC. Previously this was only printed, so a real
+        // mismatch here would have gone unnoticed.
+        assertTrue(
+            v1Drifts.isEmpty(),
+            "V1 DataFrame schema must match the UC-registered schema with no drift, but found: $v1Drifts",
+        )
+
+        // Also confirm the encoded DataFrame's own schema (not just the serializer-derived
+        // one) lines up with UC — this is the schema that would actually be written.
+        val dfDrifts = SchemaDriftReport.compare(df.schema(), catalogSchema)
+        assertTrue(
+            dfDrifts.isEmpty(),
+            "Encoded DataFrame schema must match the UC-registered schema with no drift, but found: $dfDrifts",
+        )
+
         // Step 3: developer upgrades model to V2 — pre-flight catches the contract mismatch
         val v2Drifts = SchemaDriftReport.compare(schemaFor(serializer<CustomerV2>()), catalogSchema)
         assertTrue(
-            v2Drifts.any { it.fieldName == "score" },
-            "V2 pre-flight must be blocked by UC schema comparison",
+            v2Drifts.any { it.fieldName == "score" && it.kind == DriftKind.FIELD_REMOVED },
+            "V2 pre-flight must be blocked by UC schema comparison, flagging 'score' as missing",
         )
 
         val preflightReport =
@@ -294,6 +377,6 @@ class SchemaGovernanceTest : UnityCatalogTestBase() {
         println(preflightReport.format())
 
         println("\nFull governance workflow:")
-        println("   encode V1 → schema matches UC → V2 upgrade detected → migration required")
+        println("   encode V1 → schema matches UC (asserted) → V2 upgrade detected → migration required")
     }
 }
