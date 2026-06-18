@@ -3,6 +3,32 @@
 This project demonstrates a Kotlin application connecting to a Spark 4.0 cluster using Spark Connect, with full Unity
 Catalog integration for table management and schema evolution.
 
+This research is based on the challenges Spark's architecture caused for [kotlin-spark-api](https://github.com/Kotlin/kotlin-spark-api). This version takes advantage of the stable Spark Connect JVM Client, building a Kotlin layer on top of Java. We welcome forks and experimentation with our approach. Another option would be creating the entire client side based on the proto/gRPC files that can be found in [Spark's repo](https://github.com/apache/spark).
+
+Our thesis is a contribution to a discussion how to bring Kotlin back to Apache Spark. ✨
+
+## Using as a Dependency
+
+Step 1. Add the JitPack repository to your build file
+
+```
+	dependencyResolutionManagement {
+		repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+		repositories {
+			mavenCentral()
+			maven { url 'https://jitpack.io' }
+		}
+	}
+```
+
+Step 2. Add the dependency
+
+```
+	dependencies {
+	        implementation 'com.github.eveliinavesala:spark-connect-kotlin:0.1.0'
+	}
+```
+
 ## Prerequisites
 
 * [Docker](https://www.docker.com/get-started) must be installed and running.
@@ -10,7 +36,7 @@ Catalog integration for table management and schema evolution.
 * A Java 21 JDK.
 * An IDE that supports Gradle projects (e.g., IntelliJ IDEA).
 
-## Quick Start
+## Quick Start Using repository's Sourcefiles
 
 ### Option 1: Unity Catalog Stack (Recommended)
 
@@ -72,7 +98,7 @@ The project provides two ways to interact with Unity Catalog:
 #### 1. REST API Client (Recommended for catalog operations)
 
 ```kotlin
-import unity_catalog.UnityCatalogRestClient
+import unitycatalog.UnityCatalogRestClient
 
 val baseUrl = "http://localhost:8080"
 
