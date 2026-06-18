@@ -1,11 +1,18 @@
 # Spark Connect Kotlin Example
 
 This project demonstrates a Kotlin application connecting to a Spark 4.0 cluster using Spark Connect, with full Unity
-Catalog integration for table management and schema evolution.
+Catalog integration for table management and schema evolution. The API layer is still very experimental, and we welcome forks, independent experimentation and development, and creating issues of improvement areas to our approach.
 
-This research is based on the challenges Spark's architecture caused for [kotlin-spark-api](https://github.com/Kotlin/kotlin-spark-api). This version takes advantage of the stable Spark Connect JVM Client, building a Kotlin layer on top of Java. We welcome forks and experimentation with our approach. Another option would be creating the entire client side based on the proto/gRPC files that can be found in [Spark's repo](https://github.com/apache/spark).
+This research is based on the challenges Spark's architecture evolution caused to [kotlin-spark-api](https://github.com/Kotlin/kotlin-spark-api). This version takes advantage of the stable Spark Connect JVM Client, building a Kotlin layer on top of Java. Another option would have been creating the entire client side based on the proto/gRPC files that can be found in [Spark's repo](https://github.com/apache/spark). This option would require significant amount of committed open-source contributors to be sustainable possibility.
 
-Our thesis is a contribution to a discussion how to bring Kotlin back to Apache Spark. ✨
+Our thesis is a contribution to a discussion of bringing back Kotlin to Apache Spark. ✨
+
+## Prerequisites
+
+* [Docker](https://www.docker.com/get-started) must be installed and running.
+* Docker Compose (included with Docker Desktop).
+* A Java 21 JDK.
+* An IDE that supports Gradle projects (e.g., IntelliJ IDEA).
 
 ## Using as a Dependency
 
@@ -29,14 +36,10 @@ Step 2. Add the dependency
 	}
 ```
 
-## Prerequisites
+Please note that UDFs/UDTs require configuration on your project's gradle build in order to create Jar to be sent trough Spark server.
 
-* [Docker](https://www.docker.com/get-started) must be installed and running.
-* Docker Compose (included with Docker Desktop).
-* A Java 21 JDK.
-* An IDE that supports Gradle projects (e.g., IntelliJ IDEA).
 
-## Quick Start Using repository's Sourcefiles
+## Quick Start Using Repository's Sourcefiles
 
 ### Option 1: Unity Catalog Stack (Recommended)
 
@@ -133,7 +136,7 @@ val tableInfo = UnityCatalogRestClient.getTable(baseUrl, "my_catalog.my_schema.p
 The `UnityCatalogIntegrator` provides type-safe SQL generation from Kotlin data classes:
 
 ```kotlin
-import unity_catalog.UnityCatalogIntegrator
+import unitycatalog.UnityCatalogIntegrator
 
 data class Product(val id: Int, val name: String, val price: Double)
 
