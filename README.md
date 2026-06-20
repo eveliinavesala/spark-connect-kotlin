@@ -1,4 +1,4 @@
-# Spark Connect Kotlin Example
+# Kotlin Adapter Example for Apache® Spark™
 
 This project demonstrates a Kotlin application connecting to a Spark 4.0 cluster using Spark Connect, with full Unity
 Catalog integration for table management and schema evolution. The API layer is still very experimental, and we welcome forks, independent experimentation and development, and creating issues of improvement areas to our approach.
